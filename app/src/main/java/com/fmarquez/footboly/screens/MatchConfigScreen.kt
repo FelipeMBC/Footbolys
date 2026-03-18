@@ -12,9 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -44,8 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.vm.FutbolViewModel
-import androidx.compose.material.icons.filled.Star
-import com.fmarquez.footboly.dialog.MatchSwapDialog
+import com.fmarquez.footboly.navigation.Screen
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,14 +57,9 @@ fun MatchConfigScreen(
     val match = vm.currentMatch ?: return
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-
     var showIncompleteDialog by remember { mutableStateOf(false) }
     var missingStarters by remember { mutableIntStateOf(0) }
     var missingSubs by remember { mutableIntStateOf(0) }
-
-    var showSwapDialog by remember { mutableStateOf(false) }
-    var starterToSwap by remember { mutableStateOf<Player?>(null) }
-    var selectedSubstitute by remember { mutableStateOf<Player?>(null) }
 
     Scaffold(
         topBar = {
@@ -81,7 +75,7 @@ fun MatchConfigScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = { navHostController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 },
                 actions = {
@@ -98,6 +92,7 @@ fun MatchConfigScreen(
                                     showIncompleteDialog = true
                                 } else {
                                     vm.startMatch()
+                                    navHostController.navigate(Screen.REPORT_SCREEN.route)
                                 }
                             }
                         ) {
@@ -149,63 +144,6 @@ fun MatchConfigScreen(
                         enabled = !match.isStarted && !match.isFinished,
                         onToggle = { vm.toggleStarter(it) }
                     )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    if (match.starters.isNotEmpty()) {
-                        Text(
-                            text = if (match.isStarted) "Titulares en cancha" else "Titulares seleccionados",
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(match.starters, key = { it.id }) { player ->
-                                Card {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(player.name, fontWeight = FontWeight.Bold)
-                                            Text("Titular · N° ${player.number}")
-                                        }
-
-                                        if (match.isStarted && !match.isFinished) {
-                                            IconButton(
-                                                onClick = {
-                                                    vm.selectPlayerForStats(player.id)
-                                                    navHostController.navigate(com.fmarquez.footboly.navigation.Screen.PLAYER_STATS.route)
-                                                }
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Star,
-                                                    contentDescription = "Estadística"
-                                                )
-                                            }
-
-                                            IconButton(
-                                                onClick = {
-                                                    starterToSwap = player
-                                                    selectedSubstitute = null
-                                                    showSwapDialog = true
-                                                }
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Send,
-                                                    contentDescription = "Cambio"
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 } else {
                     Text(
                         text = "Selecciona hasta 5 reservas",
@@ -221,36 +159,6 @@ fun MatchConfigScreen(
                         enabled = !match.isStarted && !match.isFinished,
                         onToggle = { vm.toggleSubstitute(it) }
                     )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    if (match.substitutes.isNotEmpty()) {
-                        Text(
-                            text = "Reservas seleccionadas",
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(match.substitutes, key = { it.id }) { player ->
-                                Card {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(player.name, fontWeight = FontWeight.Bold)
-                                            Text("Reserva · N° ${player.number}")
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -262,7 +170,6 @@ fun MatchConfigScreen(
                 showIncompleteDialog = false
             },
             title = { Text("Jugadores insuficientes") },
-
             text = {
                 Column {
                     Text("No has completado la cantidad habitual de jugadores.")
@@ -270,32 +177,6 @@ fun MatchConfigScreen(
                     Text("Titulares seleccionados: ${match.starters.size}/11")
                     Text("Reservas seleccionadas: ${match.substitutes.size}/5")
                     Spacer(modifier = Modifier.height(8.dp))
-
-                    if (showSwapDialog && starterToSwap != null) {
-                        MatchSwapDialog(
-                            starter = starterToSwap!!,
-                            substitutes = match.substitutes,
-                            selectedSubstitute = selectedSubstitute,
-                            onSelectSubstitute = { selectedSubstitute = it },
-                            onDismiss = {
-                                showSwapDialog = false
-                                starterToSwap = null
-                                selectedSubstitute = null
-                            },
-                            onConfirm = {
-                                val starter = starterToSwap
-                                val substitute = selectedSubstitute
-
-                                if (starter != null && substitute != null) {
-                                    vm.swapPlayerDuringMatch(starter, substitute)
-                                }
-
-                                showSwapDialog = false
-                                starterToSwap = null
-                                selectedSubstitute = null
-                            }
-                        )
-                    }
 
                     if (missingStarters > 0) {
                         Text("Faltan $missingStarters titulares")
@@ -320,6 +201,7 @@ fun MatchConfigScreen(
                     onClick = {
                         showIncompleteDialog = false
                         vm.startMatch()
+                        navHostController.navigate(Screen.REPORT_SCREEN.route)
                     }
                 ) {
                     Text("Continuar de todas formas")

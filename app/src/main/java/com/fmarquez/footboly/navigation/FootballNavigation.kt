@@ -7,6 +7,7 @@ import com.fmarquez.footboly.UII.screens.MatchConfigScreen
 import com.fmarquez.footboly.screens.MatchTimelineScreen
 import com.fmarquez.footboly.screens.PlayerStatsScreen
 import com.fmarquez.footboly.screens.PlayersMasterScreen
+import com.fmarquez.footboly.screens.ReporteScreen
 import com.fmarquez.footboly.screens.TeamSelectionScreen
 import com.fmarquez.footboly.vm.FutbolViewModel
 
@@ -15,7 +16,8 @@ enum class Screen(val route: String) {
     PLAYERS_MASTER("players_master"),
     MATCH_CONFIG("match_config"),
     PLAYER_STATS("player_stats"),
-    MATCH_TIMELINE("match_timeline")
+    MATCH_TIMELINE("match_timeline"),
+    REPORT_SCREEN("report_screen"),
 }
 
 fun NavGraphBuilder.setupFootballNavigation(
@@ -52,6 +54,13 @@ fun NavGraphBuilder.setupFootballNavigation(
 
     composable(route = Screen.MATCH_TIMELINE.route) {
         MatchTimelineScreen(
+            vm = viewModel,
+            navHostController = navHostController
+        )
+    }
+
+    composable(route = Screen.REPORT_SCREEN.route) {
+        ReporteScreen(
             vm = viewModel,
             navHostController = navHostController
         )

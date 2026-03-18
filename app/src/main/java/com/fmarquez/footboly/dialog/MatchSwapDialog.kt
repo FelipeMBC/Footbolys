@@ -1,6 +1,5 @@
 package com.fmarquez.footboly.dialog
 
-
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -12,6 +11,7 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.fmarquez.footboly.modelos.Player
 
@@ -35,7 +35,7 @@ fun MatchSwapDialog(
                 Text("Titular que sale: ${starter.name}")
                 Text("Selecciona una reserva que entrará:")
 
-                Spacer(modifier = androidx.compose.ui.Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)

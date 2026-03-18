@@ -10,11 +10,13 @@ import com.fmarquez.footboly.modelos.MatchEvent
 import com.fmarquez.footboly.modelos.MatchRecord
 import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.modelos.PlayerStats
+import androidx.compose.runtime.mutableStateListOf
 import com.fmarquez.footboly.modelos.Team
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
 
 
 class FutbolViewModel : ViewModel() {
@@ -29,11 +31,19 @@ class FutbolViewModel : ViewModel() {
     var currentMatch by mutableStateOf<MatchRecord?>(null)
         private set
 
+    var shouldShowFinishedDialog by mutableStateOf(false)
+        private set
+
+    var selectedFinishedMatch by mutableStateOf<MatchRecord?>(null)
+        private set
+
     var selectedPlayerId by mutableStateOf<Int?>(null)
         private set
 
     private var matchIdCounter = 1
     private var nextPlayerId = 1000
+
+    val finishedMatches = mutableStateListOf<MatchRecord>()
 
     private var matchTimerJob: Job? = null
 
@@ -67,6 +77,14 @@ class FutbolViewModel : ViewModel() {
         }
 
         selectedTeam = updatedTeam
+    }
+
+    fun selectFinishedMatch(match: MatchRecord){
+        selectedFinishedMatch = match
+    }
+
+    fun dismissFinishedDialog(){
+        shouldShowFinishedDialog = false
     }
     fun removePlayer(player: Player) {
         val team = selectedTeam ?: return
@@ -103,6 +121,7 @@ class FutbolViewModel : ViewModel() {
             remainingSeconds = 60
         )
 
+        selectedPlayerId = null
         matchTimerJob?.cancel()
     }
 
@@ -116,45 +135,116 @@ class FutbolViewModel : ViewModel() {
         return (match.starters + match.substitutes).firstOrNull { it.id == id }
     }
 
+    fun stopMatch() {
+        val match = currentMatch ?: return
+
+        matchTimerJob?.cancel()
+
+        val finished = match.copy(
+            isFinished = true,
+            remainingSeconds = 0,
+            finishedAtLabel = getElapsedMatchTimeLabel()
+        )
+
+        currentMatch = finished
+        finishedMatches.add(0, finished)
+        shouldShowFinishedDialog = true
+    }
+
+    fun getElapsedMatchTimeLabel(): String {
+        val match = currentMatch ?: return "00:00"
+        val elapsed = (match.totalSeconds - match.remainingSeconds).coerceAtLeast(0)
+        val minutes = elapsed / 60
+        val seconds = elapsed % 60
+        return String.format("%02d:%02d", minutes, seconds)
+    }
+
+    fun getTotalEventsOfCurrentMatch(): Int {
+        return currentMatch?.events?.size ?: 0
+    }
+
+    fun getTotalEventsOfSelectedFinishedMatch(): Int {
+        return selectedFinishedMatch?.events?.size ?: 0
+    }
+
+
+
     fun toggleStarter(player: Player) {
         val match = currentMatch ?: return
         if (match.isStarted || match.isFinished) return
 
-        val exists = match.starters.any { it.id == player.id }
+        val updatedStarters = match.starters.toMutableList()
+        val updatedSubs = match.substitutes.toMutableList()
+
+        val exists = updatedStarters.any { it.id == player.id }
 
         if (exists) {
-            match.starters.removeAll { it.id == player.id }
+            updatedStarters.removeAll { it.id == player.id }
         } else if (
-            match.starters.size < 11 &&
-            match.substitutes.none { it.id == player.id }
+            updatedStarters.size < 11 &&
+            updatedSubs.none { it.id == player.id }
         ) {
-            match.starters.add(player)
+            updatedStarters.add(player)
         }
 
         currentMatch = match.copy(
-            starters = match.starters,
-            substitutes = match.substitutes
+            starters = updatedStarters,
+            substitutes = updatedSubs
         )
+    }
+
+    fun addStatEvent(
+        playerName: String,
+        type: String,
+        count: Int
+    ) {
+        val match = currentMatch ?: return
+        if (count <= 0) return
+
+        val elapsed = (match.totalSeconds - match.remainingSeconds).coerceAtLeast(0)
+        val minute = elapsed / 60
+        val timestamp = getElapsedMatchTimeLabel()
+
+        val updatedEvents = match.events.toMutableList().apply {
+            add(
+                MatchEvent(
+                    minute = minute,
+                    type = type,
+                    playerName = playerName,
+                    detail = "$type: $count",
+                    timestampLabel = timestamp
+                )
+            )
+        }
+
+        currentMatch = match.copy(events = updatedEvents)
+    }
+
+    fun clearSelectedFinishedMatch() {
+        selectedFinishedMatch = null
     }
 
     fun toggleSubstitute(player: Player) {
         val match = currentMatch ?: return
         if (match.isStarted || match.isFinished) return
 
-        val exists = match.substitutes.any { it.id == player.id }
+        val updatedStarters = match.starters.toMutableList()
+        val updatedSubs = match.substitutes.toMutableList()
+
+        val exists = updatedSubs.any { it.id == player.id }
 
         if (exists) {
-            match.substitutes.removeAll { it.id == player.id }
+            updatedSubs.removeAll { it.id == player.id }
         } else if (
-            match.substitutes.size < 5 &&
-            match.starters.none { it.id == player.id }
+            updatedSubs.size < 5 &&
+            updatedStarters.none { it.id == player.id }
         ) {
-            match.substitutes.add(player)
+            updatedSubs.add(player)
         }
 
         currentMatch = match.copy(
-            starters = match.starters,
-            substitutes = match.substitutes
+            starters = updatedStarters,
+            substitutes = updatedSubs
         )
     }
 
@@ -173,10 +263,15 @@ class FutbolViewModel : ViewModel() {
                 val current = currentMatch ?: break
 
                 if (current.remainingSeconds <= 0) {
-                    currentMatch = current.copy(
+                    val finishedMatch = current.copy(
                         remainingSeconds = 0,
-                        isFinished = true
+                        isFinished = true,
+                        finishedAtLabel = "00:00"
                     )
+
+                    currentMatch = finishedMatch
+                    finishedMatches.add(0, finishedMatch)
+                    shouldShowFinishedDialog = true
                     break
                 }
 
@@ -185,10 +280,22 @@ class FutbolViewModel : ViewModel() {
                 val updated = currentMatch ?: break
                 if (updated.isStarted && !updated.isFinished) {
                     val newRemaining = (updated.remainingSeconds - 1).coerceAtLeast(0)
-                    currentMatch = updated.copy(
-                        remainingSeconds = newRemaining,
-                        isFinished = newRemaining == 0
-                    )
+
+                    if (newRemaining == 0) {
+                        val finishedMatch = updated.copy(
+                            remainingSeconds = 0,
+                            isFinished = true,
+                            finishedAtLabel = "00:00"
+                        )
+                        currentMatch = finishedMatch
+                        finishedMatches.add(0, finishedMatch)
+                        shouldShowFinishedDialog = true
+                        break
+                    } else {
+                        currentMatch = updated.copy(
+                            remainingSeconds = newRemaining
+                        )
+                    }
                 }
             }
         }

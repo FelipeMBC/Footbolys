@@ -52,6 +52,8 @@ fun PlayersMasterScreen(
     navHostController: NavHostController
 ) {
     val team = vm.selectedTeam ?: return
+    val currentMatch = vm.currentMatch
+
     val context = LocalContext.current
 
     var showAddDialog by remember { mutableStateOf(false) }
@@ -62,6 +64,9 @@ fun PlayersMasterScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
 
     var showMinPlayersWarning by remember { mutableStateOf(false) }
+    val matchInCourse = currentMatch?.isStarted == true && currentMatch.isFinished == false
+
+
 
     LaunchedEffect(team.players.size) {
         if (team.players.size < 11) {
@@ -119,7 +124,13 @@ fun PlayersMasterScreen(
 
                 Button(
                     onClick = {
-                        if (team.players.size < 11) {
+                        if (matchInCourse) {
+                            Toast.makeText(
+                                context,
+                                "Hay un partido en curso",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        } else if (team.players.size < 11) {
                             showMinPlayersWarning = true
                         } else {
                             vm.createNewMatch()
@@ -144,11 +155,13 @@ fun PlayersMasterScreen(
                     },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("Ver partido")
+                    Text("Ver Partidos")
                 }
-
                 OutlinedButton(
-                    onClick = { },
+                    onClick = {
+                        navHostController.navigate(Screen.REPORT_SCREEN.route)
+                    },
+                    enabled = currentMatch?.isStarted == true || currentMatch?.isFinished == true,
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Reporte")
