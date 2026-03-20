@@ -1,9 +1,8 @@
 package com.fmarquez.footboly.dialog
 
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import com.fmarquez.footboly.modelos.Player
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +15,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.fmarquez.footboly.modelos.Player
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -31,6 +31,9 @@ fun SwapPlayerDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
+    val isMinuteValid = swapMinute.toIntOrNull() != null
+    val canConfirm = starterSelected != null && subSelected != null && isMinuteValid
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Registrar cambio") },
@@ -47,7 +50,11 @@ fun SwapPlayerDialog(
                             onClick = { onStarterSelected(player) },
                             label = {
                                 Text(
-                                    if (starterSelected?.id == player.id) "✓ ${player.name}" else player.name
+                                    if (starterSelected?.id == player.id) {
+                                        "✓ ${player.name}"
+                                    } else {
+                                        player.name
+                                    }
                                 )
                             }
                         )
@@ -55,6 +62,7 @@ fun SwapPlayerDialog(
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
+
                 Text("Reserva que entra")
                 Spacer(modifier = Modifier.height(4.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -63,7 +71,11 @@ fun SwapPlayerDialog(
                             onClick = { onSubSelected(player) },
                             label = {
                                 Text(
-                                    if (subSelected?.id == player.id) "✓ ${player.name}" else player.name
+                                    if (subSelected?.id == player.id) {
+                                        "✓ ${player.name}"
+                                    } else {
+                                        player.name
+                                    }
                                 )
                             }
                         )
@@ -71,16 +83,22 @@ fun SwapPlayerDialog(
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
+
                 OutlinedTextField(
                     value = swapMinute,
-                    onValueChange = onMinuteChange,
+                    onValueChange = { value ->
+                        onMinuteChange(value.filter { it.isDigit() })
+                    },
                     label = { Text("Minuto del cambio") },
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
+            TextButton(
+                onClick = onConfirm,
+                enabled = canConfirm
+            ) {
                 Text("Guardar")
             }
         },

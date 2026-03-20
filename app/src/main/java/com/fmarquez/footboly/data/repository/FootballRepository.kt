@@ -68,8 +68,13 @@ class FootballRepository(
         teamEmoji: String,
         playerNames: List<String>
     ): Team? {
-        if (teamName.isBlank()) return null
-        if (playerNames.size !in 11..30) return null
+        val cleanedTeamName = teamName.trim()
+        val cleanedPlayers = playerNames
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+
+        if (cleanedTeamName.isBlank()) return null
+        if (cleanedPlayers.size !in 5..30) return null
 
         val teamId = teamDao.getNextTeamId()
         var nextPlayerId = teamDao.getNextPlayerId()
@@ -79,17 +84,17 @@ class FootballRepository(
         teamDao.insertTeam(
             TeamEntity(
                 id = teamId,
-                name = teamName.trim(),
+                name = cleanedTeamName,
                 logoEmoji = finalEmoji
             )
         )
 
         teamDao.insertPlayers(
-            playerNames.mapIndexed { index, playerName ->
+            cleanedPlayers.mapIndexed { index, playerName ->
                 PlayerEntity(
                     id = nextPlayerId++,
                     teamId = teamId,
-                    name = playerName.trim(),
+                    name = playerName,
                     number = index + 1
                 )
             }

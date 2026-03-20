@@ -25,6 +25,8 @@ fun MatchSwapDialog(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit
 ) {
+    val canConfirm = selectedSubstitute != null
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Cambio de jugador") },
@@ -65,7 +67,7 @@ fun MatchSwapDialog(
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
-                enabled = selectedSubstitute != null
+                enabled = canConfirm
             ) {
                 Text("Confirmar cambio")
             }

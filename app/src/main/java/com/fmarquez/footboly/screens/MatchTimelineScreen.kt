@@ -401,7 +401,8 @@ fun MatchDetailContent(
                 MatchEventReportCard(
                     title = formatEventTitle(event.type, event.detail),
                     timeLabel = event.timestampLabel,
-                    playerName = event.playerName
+                    playerName = event.playerName,
+                    detail = event.detail
                 )
             }
         }
@@ -416,8 +417,11 @@ fun MatchDetailContent(
 fun MatchEventReportCard(
     title: String,
     timeLabel: String,
-    playerName: String
+    playerName: String,
+    detail: String = ""
 ) {
+    val isSwap = title == "Cambio" || detail.startsWith("Entra ")
+
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -431,9 +435,14 @@ fun MatchEventReportCard(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
-                    text = title,
+                    text = if (isSwap) "Cambio" else title,
                     fontWeight = FontWeight.Bold
                 )
+
+                if (isSwap) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(detail.ifBlank { "Cambio de jugador" })
+                }
 
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -458,7 +467,7 @@ fun MatchEventReportCard(
                         contentDescription = null
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(playerName)
+                    Text(playerName.ifBlank { "Sin jugador" })
                 }
             }
 
@@ -470,7 +479,7 @@ fun MatchEventReportCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = eventIcon(title),
+                        imageVector = eventIcon(title, detail),
                         contentDescription = title
                     )
                 }
@@ -480,12 +489,15 @@ fun MatchEventReportCard(
 }
 
 fun formatEventTitle(type: String, detail: String): String {
+    if (type == "Cambio") return "Cambio"
+
     val count = detail.substringAfter(": ", "").toIntOrNull()
     return if (count != null) "$type - $count" else type
 }
 
-fun eventIcon(type: String): ImageVector {
+fun eventIcon(type: String, detail: String = ""): ImageVector {
     return when {
+        type == "Cambio" || detail.startsWith("Entra ") -> Icons.Default.TrackChanges
         type.startsWith("Gol") -> Icons.Default.SportsSoccer
         type.startsWith("Asistencia") -> Icons.Default.Send
         type.startsWith("Amarilla") -> Icons.Default.Warning

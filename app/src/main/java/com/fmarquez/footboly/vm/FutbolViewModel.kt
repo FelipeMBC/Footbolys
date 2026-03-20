@@ -70,11 +70,16 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
         viewModelScope.launch {
             repository.observeTeams().collect { loadedTeams ->
+                val previousSelectedTeamId = selectedTeamId
+
                 teams.clear()
                 teams.addAll(loadedTeams)
 
-                if (selectedTeamId != null && loadedTeams.none { it.id == selectedTeamId }) {
-                    selectedTeamId = null
+                selectedTeamId = when {
+                    loadedTeams.isEmpty() -> null
+                    previousSelectedTeamId != null &&
+                            loadedTeams.any { it.id == previousSelectedTeamId } -> previousSelectedTeamId
+                    else -> loadedTeams.first().id
                 }
             }
         }
@@ -758,8 +763,12 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         return String.format("%02d:%02d", minutes, seconds)
     }
 
-    fun registerSwap(starter: Player, sub: Player, minute: Int) {
+    fun registerSwap(starter: Player, sub: Player) {
         val match = currentMatch ?: return
+
+        val elapsed = (match.totalSeconds - match.remainingSeconds).coerceAtLeast(0)
+        val minute = elapsed / 60
+        val timestamp = getElapsedMatchTimeLabel()
 
         val updatedStarters = match.starters.toMutableList().apply {
             removeAll { it.id == starter.id }
@@ -776,7 +785,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
             type = "Cambio",
             playerId = sub.id,
             playerName = sub.name,
-            detail = "Entra ${sub.name} por ${starter.name}"
+            detail = "Entra ${sub.name} por ${starter.name}",
+            timestampLabel = timestamp
         )
 
         val updatedEvents = match.events.toMutableList().apply {
@@ -837,18 +847,16 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         playerNames: List<String>
     ) {
         if (teamName.isBlank()) return
-        if (playerNames.size !in 11..30) return
+        if (playerNames.size !in 5..30) return
 
         viewModelScope.launch {
-            val newTeam = repository.addCustomTeam(
+            val createdTeam = repository.addCustomTeam(
                 teamName = teamName,
                 teamEmoji = teamEmoji,
-                playerNames = playerNames
-            )
+                playerNames = playerNames.map { it.trim() }.filter { it.isNotBlank() }
+            ) ?: return@launch
 
-            if (newTeam != null) {
-                selectedTeamId = newTeam.id
-            }
+            selectedTeamId = createdTeam.id
         }
     }
 

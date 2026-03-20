@@ -257,13 +257,23 @@ fun ReporteScreen(
                 val substitute = selectedSubstitute
 
                 if (starter != null && substitute != null) {
-                    vm.swapPlayerDuringMatch(starter, substitute)
+                    vm.registerSwap(
+                        starter = starter,
+                        sub = substitute
+                    )
 
                     Toast.makeText(
                         context,
-                        "Jugador cambiado, tiempo ${vm.getFormattedMatchTime()}",
+                        "Cambio registrado",
                         Toast.LENGTH_SHORT
                     ).show()
+                } else {
+                    Toast.makeText(
+                        context,
+                        "Debes seleccionar una reserva",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return@MatchSwapDialog
                 }
 
                 showSwapDialog = false
