@@ -3,7 +3,7 @@ package com.fmarquez.footboly.navigation
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
-import com.fmarquez.footboly.UII.screens.MatchConfigScreen
+import com.fmarquez.footboly.screens.MatchConfigScreen
 import com.fmarquez.footboly.screens.MatchTimelineScreen
 import com.fmarquez.footboly.screens.PlayerStatsScreen
 import com.fmarquez.footboly.screens.PlayersMasterScreen

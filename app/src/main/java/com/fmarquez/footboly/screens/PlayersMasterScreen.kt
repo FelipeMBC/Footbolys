@@ -58,7 +58,6 @@ fun PlayersMasterScreen(
 
     var showAddDialog by remember { mutableStateOf(false) }
     var playerName by remember { mutableStateOf("") }
-    var playerNumber by remember { mutableStateOf("") }
 
     var playerToDelete by remember { mutableStateOf<Player?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
@@ -66,14 +65,8 @@ fun PlayersMasterScreen(
     var showMinPlayersWarning by remember { mutableStateOf(false) }
     val matchInCourse = currentMatch?.isStarted == true && currentMatch.isFinished == false
 
-
-
     LaunchedEffect(team.players.size) {
-        if (team.players.size < 11) {
-            showMinPlayersWarning = true
-        } else {
-            showMinPlayersWarning = false
-        }
+        showMinPlayersWarning = team.players.size < 11
     }
 
     Scaffold(
@@ -133,8 +126,9 @@ fun PlayersMasterScreen(
                         } else if (team.players.size < 11) {
                             showMinPlayersWarning = true
                         } else {
-                            vm.createNewMatch()
-                            navHostController.navigate(Screen.MATCH_CONFIG.route)
+                            vm.createNewMatch {
+                                navHostController.navigate(Screen.MATCH_CONFIG.route)
+                            }
                         }
                     },
                     modifier = Modifier.weight(1f)

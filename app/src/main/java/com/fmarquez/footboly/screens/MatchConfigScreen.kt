@@ -1,4 +1,4 @@
-package com.fmarquez.footboly.UII.screens
+package com.fmarquez.footboly.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.clickable
