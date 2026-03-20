@@ -16,13 +16,16 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Dangerous
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -35,16 +38,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.fmarquez.footboly.modelos.PlayerStatsDraft
 import com.fmarquez.footboly.vm.FutbolViewModel
 
 data class SingleStatUi(
@@ -72,72 +74,62 @@ fun PlayerStatsScreen(
     val context = LocalContext.current
     val player = vm.getSelectedPlayer() ?: return
     val team = vm.selectedTeam ?: return
-    val currentMatch = vm.currentMatch
+    val activeMatch = vm.getActiveMatchForStats() ?: return
+    val isEditingFinishedMatch = vm.isEditingFinishedMatchMode()
 
-    val singleStats = remember {
-        listOf(
-            SingleStatUi("Gol", Icons.Default.Star),
-            SingleStatUi("Asistencia", Icons.Default.Send),
-            SingleStatUi("Amarilla", Icons.Default.Warning),
-            SingleStatUi("Roja", Icons.Default.Star),
-            SingleStatUi("Disparos al Arco", Icons.Default.Star),
-            SingleStatUi("Ocasiones de Gol", Icons.Default.Star),
-            SingleStatUi("Pelotas Perdidas", Icons.Default.Clear),
-            SingleStatUi("Pelotas Recuperadas", Icons.Default.Star),
-            SingleStatUi("Centros Buenos", Icons.Default.Send),
-            SingleStatUi("Centros Malos", Icons.Default.Star)
+    val singleStats = listOf(
+        SingleStatUi("Gol", Icons.Default.SportsSoccer),
+        SingleStatUi("Asistencia", Icons.Default.Send),
+        SingleStatUi("Amarilla", Icons.Default.Warning),
+        SingleStatUi("Roja", Icons.Default.Dangerous),
+        SingleStatUi("Disparos al Arco", Icons.Default.Star),
+        SingleStatUi("Ocasiones de Gol", Icons.Default.Star),
+        SingleStatUi("Pelotas Perdidas", Icons.Default.Clear),
+        SingleStatUi("Pelotas Recuperadas", Icons.Default.Star),
+        SingleStatUi("Centros Buenos", Icons.Default.Check),
+        SingleStatUi("Centros Malos", Icons.Default.Clear)
+    )
+
+    val dualStats = listOf(
+        DualStatUi(
+            label = "Faltas",
+            favorLabel = "Falta a Favor",
+            contraLabel = "Falta en Contra",
+            favorIcon = Icons.Default.CheckCircle,
+            contraIcon = Icons.Default.Close
+        ),
+        DualStatUi(
+            label = "Corner",
+            favorLabel = "Corner a Favor",
+            contraLabel = "Corner en Contra",
+            favorIcon = Icons.Default.CheckCircle,
+            contraIcon = Icons.Default.Close
+        ),
+        DualStatUi(
+            label = "Tiro Libre",
+            favorLabel = "Tiro Libre a Favor",
+            contraLabel = "Tiro Libre en Contra",
+            favorIcon = Icons.Default.CheckCircle,
+            contraIcon = Icons.Default.Close
+        ),
+        DualStatUi(
+            label = "Tiro Libre Lateral",
+            favorLabel = "Tiro Libre Lateral a Favor",
+            contraLabel = "Tiro Libre Lateral en Contra",
+            favorIcon = Icons.Default.CheckCircle,
+            contraIcon = Icons.Default.Close
         )
-    }
-
-    val dualStats = remember {
-        listOf(
-            DualStatUi(
-                label = "Faltas",
-                favorLabel = "Falta a Favor",
-                contraLabel = "Falta en Contra",
-                favorIcon = Icons.Default.CheckCircle,
-                contraIcon = Icons.Default.Close
-            ),
-            DualStatUi(
-                label = "Corner",
-                favorLabel = "Corner a Favor",
-                contraLabel = "Corner en Contra",
-                favorIcon = Icons.Default.CheckCircle,
-                contraIcon = Icons.Default.Close
-            ),
-            DualStatUi(
-                label = "Tiro Libre",
-                favorLabel = "Tiro Libre a Favor",
-                contraLabel = "Tiro Libre en Contra",
-                favorIcon = Icons.Default.CheckCircle,
-                contraIcon = Icons.Default.Close
-            ),
-            DualStatUi(
-                label = "Tiro Libre Lateral",
-                favorLabel = "Tiro Libre Lateral a Favor",
-                contraLabel = "Tiro Libre Lateral en Contra",
-                favorIcon = Icons.Default.CheckCircle,
-                contraIcon = Icons.Default.Close
-            )
-        )
-    }
-
-    val singleValues = remember {
-        singleStats.associate { it.label to mutableIntStateOf(it.initialValue) }
-    }
-
-    val dualFavorValues = remember {
-        dualStats.associate { it.favorLabel to mutableIntStateOf(it.favorInitial) }
-    }
-
-    val dualContraValues = remember {
-        dualStats.associate { it.contraLabel to mutableIntStateOf(it.contraInitial) }
-    }
+    )
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Estadísticas") },
+                title = {
+                    Text(
+                        if (isEditingFinishedMatch) "Editar estadísticas"
+                        else "Estadísticas"
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { navHostController.popBackStack() }) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
@@ -146,59 +138,32 @@ fun PlayerStatsScreen(
                 actions = {
                     IconButton(
                         onClick = {
-                            val timestamp = vm.getElapsedMatchTimeLabel()
-                            val savedLines = mutableListOf<String>()
+                            val savedLines = vm.savePlayerStatsDraftAsEvents(player.id)
 
-                            singleStats.forEach { stat ->
-                                val value = singleValues[stat.label]?.intValue ?: 0
-                                if (value > 0) {
-                                    vm.addStatEvent(
-                                        playerName = player.name,
-                                        type = stat.label,
-                                        count = value
-                                    )
-                                    savedLines.add("${stat.label}: $value $timestamp")
-                                }
-                            }
-
-                            dualStats.forEach { stat ->
-                                val favorValue = dualFavorValues[stat.favorLabel]?.intValue ?: 0
-                                val contraValue = dualContraValues[stat.contraLabel]?.intValue ?: 0
-
-                                if (favorValue > 0) {
-                                    vm.addStatEvent(
-                                        playerName = player.name,
-                                        type = stat.favorLabel,
-                                        count = favorValue
-                                    )
-                                    savedLines.add("${stat.favorLabel}: $favorValue $timestamp")
-                                }
-
-                                if (contraValue > 0) {
-                                    vm.addStatEvent(
-                                        playerName = player.name,
-                                        type = stat.contraLabel,
-                                        count = contraValue
-                                    )
-                                    savedLines.add("${stat.contraLabel}: $contraValue $timestamp")
-                                }
-                            }
-
-                            val toastText = if (savedLines.isEmpty()) {
-                                "Sin cambios para registrar"
+                            if (isEditingFinishedMatch) {
+                                Toast.makeText(
+                                    context,
+                                    if (savedLines.isEmpty()) "No hubo cambios" else "Cambios guardados",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                navHostController.popBackStack()
                             } else {
-                                (savedLines + "Registrado").joinToString("\n")
-                            }
+                                val toastText = if (savedLines.isEmpty()) {
+                                    "Sin cambios para registrar"
+                                } else {
+                                    (savedLines + "Registrado").joinToString("\n")
+                                }
 
-                            Toast.makeText(
-                                context,
-                                toastText,
-                                Toast.LENGTH_LONG
-                            ).show()
+                                Toast.makeText(
+                                    context,
+                                    toastText,
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
                         }
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Place,
+                            imageVector = Icons.Default.Save,
                             contentDescription = "Guardar cambios"
                         )
                     }
@@ -238,8 +203,17 @@ fun PlayerStatsScreen(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "ID Partido: ${currentMatch?.id ?: 0}",
+                        text = "ID Partido: ${activeMatch.id}",
                         fontSize = 15.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = if (isEditingFinishedMatch) "Modo edición de partido finalizado"
+                        else "Modo registro en partido en curso",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -277,45 +251,169 @@ fun PlayerStatsScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(singleStats) { stat ->
+                    val currentDraft = vm.getOrCreatePlayerStatsDraft(player.id)
+
                     SingleStatCard(
                         stat = stat,
-                        value = singleValues[stat.label]?.intValue ?: 0,
+                        value = singleStatValue(currentDraft, stat.label),
                         onIncrease = {
-                            val state = singleValues[stat.label]
-                            if (state != null) state.intValue++
+                            val latestDraft = vm.getOrCreatePlayerStatsDraft(player.id)
+                            vm.updatePlayerStatsDraft(
+                                increaseSingleStat(latestDraft, stat.label)
+                            )
                         },
                         onDecrease = {
-                            val state = singleValues[stat.label]
-                            if (state != null && state.intValue > 0) state.intValue--
+                            val latestDraft = vm.getOrCreatePlayerStatsDraft(player.id)
+                            vm.updatePlayerStatsDraft(
+                                decreaseSingleStat(latestDraft, stat.label)
+                            )
                         }
                     )
                 }
 
                 items(dualStats) { stat ->
+                    val currentDraft = vm.getOrCreatePlayerStatsDraft(player.id)
+
                     DualStatCard(
                         stat = stat,
-                        favorValue = dualFavorValues[stat.favorLabel]?.intValue ?: 0,
-                        contraValue = dualContraValues[stat.contraLabel]?.intValue ?: 0,
+                        favorValue = dualFavorValue(currentDraft, stat.favorLabel),
+                        contraValue = dualContraValue(currentDraft, stat.contraLabel),
                         onFavorIncrease = {
-                            val state = dualFavorValues[stat.favorLabel]
-                            if (state != null) state.intValue++
+                            val latestDraft = vm.getOrCreatePlayerStatsDraft(player.id)
+                            vm.updatePlayerStatsDraft(
+                                increaseDualFavorStat(latestDraft, stat.favorLabel)
+                            )
                         },
                         onFavorDecrease = {
-                            val state = dualFavorValues[stat.favorLabel]
-                            if (state != null && state.intValue > 0) state.intValue--
+                            val latestDraft = vm.getOrCreatePlayerStatsDraft(player.id)
+                            vm.updatePlayerStatsDraft(
+                                decreaseDualFavorStat(latestDraft, stat.favorLabel)
+                            )
                         },
                         onContraIncrease = {
-                            val state = dualContraValues[stat.contraLabel]
-                            if (state != null) state.intValue++
+                            val latestDraft = vm.getOrCreatePlayerStatsDraft(player.id)
+                            vm.updatePlayerStatsDraft(
+                                increaseDualContraStat(latestDraft, stat.contraLabel)
+                            )
                         },
                         onContraDecrease = {
-                            val state = dualContraValues[stat.contraLabel]
-                            if (state != null && state.intValue > 0) state.intValue--
+                            val latestDraft = vm.getOrCreatePlayerStatsDraft(player.id)
+                            vm.updatePlayerStatsDraft(
+                                decreaseDualContraStat(latestDraft, stat.contraLabel)
+                            )
                         }
                     )
                 }
             }
         }
+    }
+}
+
+fun singleStatValue(draft: PlayerStatsDraft, label: String): Int {
+    return when (label) {
+        "Gol" -> draft.gol
+        "Asistencia" -> draft.asistencia
+        "Amarilla" -> draft.amarilla
+        "Roja" -> draft.roja
+        "Disparos al Arco" -> draft.disparosAlArco
+        "Ocasiones de Gol" -> draft.ocasionesDeGol
+        "Pelotas Perdidas" -> draft.pelotasPerdidas
+        "Pelotas Recuperadas" -> draft.pelotasRecuperadas
+        "Centros Buenos" -> draft.centrosBuenos
+        "Centros Malos" -> draft.centrosMalos
+        else -> 0
+    }
+}
+
+fun dualFavorValue(draft: PlayerStatsDraft, label: String): Int {
+    return when (label) {
+        "Falta a Favor" -> draft.faltaAFavor
+        "Corner a Favor" -> draft.cornerAFavor
+        "Tiro Libre a Favor" -> draft.tiroLibreAFavor
+        "Tiro Libre Lateral a Favor" -> draft.tiroLibreLateralAFavor
+        else -> 0
+    }
+}
+
+fun dualContraValue(draft: PlayerStatsDraft, label: String): Int {
+    return when (label) {
+        "Falta en Contra" -> draft.faltaEnContra
+        "Corner en Contra" -> draft.cornerEnContra
+        "Tiro Libre en Contra" -> draft.tiroLibreEnContra
+        "Tiro Libre Lateral en Contra" -> draft.tiroLibreLateralEnContra
+        else -> 0
+    }
+}
+
+fun increaseSingleStat(draft: PlayerStatsDraft, label: String): PlayerStatsDraft {
+    return when (label) {
+        "Gol" -> draft.copy(gol = draft.gol + 1)
+        "Asistencia" -> draft.copy(asistencia = draft.asistencia + 1)
+        "Amarilla" -> draft.copy(amarilla = draft.amarilla + 1)
+        "Roja" -> draft.copy(roja = draft.roja + 1)
+        "Disparos al Arco" -> draft.copy(disparosAlArco = draft.disparosAlArco + 1)
+        "Ocasiones de Gol" -> draft.copy(ocasionesDeGol = draft.ocasionesDeGol + 1)
+        "Pelotas Perdidas" -> draft.copy(pelotasPerdidas = draft.pelotasPerdidas + 1)
+        "Pelotas Recuperadas" -> draft.copy(pelotasRecuperadas = draft.pelotasRecuperadas + 1)
+        "Centros Buenos" -> draft.copy(centrosBuenos = draft.centrosBuenos + 1)
+        "Centros Malos" -> draft.copy(centrosMalos = draft.centrosMalos + 1)
+        else -> draft
+    }
+}
+
+fun decreaseSingleStat(draft: PlayerStatsDraft, label: String): PlayerStatsDraft {
+    return when (label) {
+        "Gol" -> draft.copy(gol = (draft.gol - 1).coerceAtLeast(0))
+        "Asistencia" -> draft.copy(asistencia = (draft.asistencia - 1).coerceAtLeast(0))
+        "Amarilla" -> draft.copy(amarilla = (draft.amarilla - 1).coerceAtLeast(0))
+        "Roja" -> draft.copy(roja = (draft.roja - 1).coerceAtLeast(0))
+        "Disparos al Arco" -> draft.copy(disparosAlArco = (draft.disparosAlArco - 1).coerceAtLeast(0))
+        "Ocasiones de Gol" -> draft.copy(ocasionesDeGol = (draft.ocasionesDeGol - 1).coerceAtLeast(0))
+        "Pelotas Perdidas" -> draft.copy(pelotasPerdidas = (draft.pelotasPerdidas - 1).coerceAtLeast(0))
+        "Pelotas Recuperadas" -> draft.copy(pelotasRecuperadas = (draft.pelotasRecuperadas - 1).coerceAtLeast(0))
+        "Centros Buenos" -> draft.copy(centrosBuenos = (draft.centrosBuenos - 1).coerceAtLeast(0))
+        "Centros Malos" -> draft.copy(centrosMalos = (draft.centrosMalos - 1).coerceAtLeast(0))
+        else -> draft
+    }
+}
+
+fun increaseDualFavorStat(draft: PlayerStatsDraft, label: String): PlayerStatsDraft {
+    return when (label) {
+        "Falta a Favor" -> draft.copy(faltaAFavor = draft.faltaAFavor + 1)
+        "Corner a Favor" -> draft.copy(cornerAFavor = draft.cornerAFavor + 1)
+        "Tiro Libre a Favor" -> draft.copy(tiroLibreAFavor = draft.tiroLibreAFavor + 1)
+        "Tiro Libre Lateral a Favor" -> draft.copy(tiroLibreLateralAFavor = draft.tiroLibreLateralAFavor + 1)
+        else -> draft
+    }
+}
+
+fun decreaseDualFavorStat(draft: PlayerStatsDraft, label: String): PlayerStatsDraft {
+    return when (label) {
+        "Falta a Favor" -> draft.copy(faltaAFavor = (draft.faltaAFavor - 1).coerceAtLeast(0))
+        "Corner a Favor" -> draft.copy(cornerAFavor = (draft.cornerAFavor - 1).coerceAtLeast(0))
+        "Tiro Libre a Favor" -> draft.copy(tiroLibreAFavor = (draft.tiroLibreAFavor - 1).coerceAtLeast(0))
+        "Tiro Libre Lateral a Favor" -> draft.copy(tiroLibreLateralAFavor = (draft.tiroLibreLateralAFavor - 1).coerceAtLeast(0))
+        else -> draft
+    }
+}
+
+fun increaseDualContraStat(draft: PlayerStatsDraft, label: String): PlayerStatsDraft {
+    return when (label) {
+        "Falta en Contra" -> draft.copy(faltaEnContra = draft.faltaEnContra + 1)
+        "Corner en Contra" -> draft.copy(cornerEnContra = draft.cornerEnContra + 1)
+        "Tiro Libre en Contra" -> draft.copy(tiroLibreEnContra = draft.tiroLibreEnContra + 1)
+        "Tiro Libre Lateral en Contra" -> draft.copy(tiroLibreLateralEnContra = draft.tiroLibreLateralEnContra + 1)
+        else -> draft
+    }
+}
+
+fun decreaseDualContraStat(draft: PlayerStatsDraft, label: String): PlayerStatsDraft {
+    return when (label) {
+        "Falta en Contra" -> draft.copy(faltaEnContra = (draft.faltaEnContra - 1).coerceAtLeast(0))
+        "Corner en Contra" -> draft.copy(cornerEnContra = (draft.cornerEnContra - 1).coerceAtLeast(0))
+        "Tiro Libre en Contra" -> draft.copy(tiroLibreEnContra = (draft.tiroLibreEnContra - 1).coerceAtLeast(0))
+        "Tiro Libre Lateral en Contra" -> draft.copy(tiroLibreLateralEnContra = (draft.tiroLibreLateralEnContra - 1).coerceAtLeast(0))
+        else -> draft
     }
 }
 

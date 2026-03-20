@@ -1,5 +1,6 @@
 package com.fmarquez.footboly.UII.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -24,13 +24,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -39,13 +42,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.fmarquez.footboly.modelos.Player
-import com.fmarquez.footboly.vm.FutbolViewModel
 import com.fmarquez.footboly.navigation.Screen
-
+import com.fmarquez.footboly.vm.FutbolViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,11 +58,41 @@ fun MatchConfigScreen(
 ) {
     val team = vm.selectedTeam ?: return
     val match = vm.currentMatch ?: return
+    val context = LocalContext.current
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showIncompleteDialog by remember { mutableStateOf(false) }
+    var showDurationDialog by remember { mutableStateOf(false) }
     var missingStarters by remember { mutableIntStateOf(0) }
     var missingSubs by remember { mutableIntStateOf(0) }
+    var matchDurationMinutes by remember { mutableFloatStateOf(60f) }
+
+    LaunchedEffect(match.isStarted, match.isFinished) {
+        if (match.isStarted && !match.isFinished) {
+            navHostController.navigate(Screen.REPORT_SCREEN.route) {
+                popUpTo(Screen.MATCH_CONFIG.route) {
+                    inclusive = true
+                }
+                launchSingleTop = true
+            }
+        }
+    }
+
+    fun openDurationDialog() {
+        matchDurationMinutes = ((match.totalSeconds / 60).coerceIn(10, 90)).toFloat()
+        showDurationDialog = true
+    }
+
+    fun startMatchWithSelectedDuration() {
+        vm.setMatchDuration(matchDurationMinutes.toInt())
+        vm.startMatch()
+        navHostController.navigate(Screen.REPORT_SCREEN.route) {
+            popUpTo(Screen.MATCH_CONFIG.route) {
+                inclusive = true
+            }
+            launchSingleTop = true
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -74,7 +107,19 @@ fun MatchConfigScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navHostController.popBackStack() }) {
+                    IconButton(
+                        onClick = {
+                            if (match.isStarted && !match.isFinished) {
+                                Toast.makeText(
+                                    context,
+                                    "No puedes volver a esta pantalla mientras el partido está en curso",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                navHostController.popBackStack()
+                            }
+                        }
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 },
@@ -84,6 +129,16 @@ fun MatchConfigScreen(
                             onClick = {
                                 val currentStarters = match.starters.size
                                 val currentSubs = match.substitutes.size
+                                val totalSeleccionados = currentStarters + currentSubs
+
+                                if (totalSeleccionados < 5) {
+                                    Toast.makeText(
+                                        context,
+                                        "Debes seleccionar al menos 5 jugadores para iniciar el partido",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@FilledIconButton
+                                }
 
                                 missingStarters = (11 - currentStarters).coerceAtLeast(0)
                                 missingSubs = (5 - currentSubs).coerceAtLeast(0)
@@ -91,8 +146,7 @@ fun MatchConfigScreen(
                                 if (missingStarters > 0 || missingSubs > 0) {
                                     showIncompleteDialog = true
                                 } else {
-                                    vm.startMatch()
-                                    navHostController.navigate(Screen.REPORT_SCREEN.route)
+                                    openDurationDialog()
                                 }
                             }
                         ) {
@@ -199,12 +253,71 @@ fun MatchConfigScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
+                        val totalSeleccionados = match.starters.size + match.substitutes.size
+
+                        if (totalSeleccionados < 5) {
+                            Toast.makeText(
+                                context,
+                                "Debes seleccionar al menos 5 jugadores para iniciar el partido",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            showIncompleteDialog = false
+                            return@TextButton
+                        }
+
                         showIncompleteDialog = false
-                        vm.startMatch()
-                        navHostController.navigate(Screen.REPORT_SCREEN.route)
+                        openDurationDialog()
                     }
                 ) {
                     Text("Continuar de todas formas")
+                }
+            }
+        )
+    }
+
+    if (showDurationDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showDurationDialog = false
+            },
+            title = { Text("Duración del partido") },
+            text = {
+                Column {
+                    Text("Selecciona una duración entre 10 y 90 minutos")
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "${matchDurationMinutes.toInt()} minutos",
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Slider(
+                        value = matchDurationMinutes,
+                        onValueChange = { matchDurationMinutes = it },
+                        valueRange = 10f..90f,
+                        steps = 79
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDurationDialog = false
+                    }
+                ) {
+                    Text("Cancelar")
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDurationDialog = false
+                        startMatchWithSelectedDuration()
+                    }
+                ) {
+                    Text("Iniciar")
                 }
             }
         )

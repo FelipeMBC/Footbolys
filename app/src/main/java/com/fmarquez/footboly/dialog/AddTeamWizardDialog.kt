@@ -31,7 +31,7 @@ fun AddTeamPlayersDialog(
         title = { Text("Agregar jugadores") },
         text = {
             Column {
-                Text("Ingresa entre 11 y 30 jugadores")
+                Text("Ingresa entre 5 hasta 30 jugadores")
                 Spacer(modifier = Modifier.height(12.dp))
 
                 OutlinedTextField(
@@ -73,7 +73,7 @@ fun AddTeamPlayersDialog(
         confirmButton = {
             TextButton(
                 onClick = onContinue,
-                enabled = players.size >= 11
+                enabled = players.size >= 5
             ) {
                 Text("Continuar")
             }

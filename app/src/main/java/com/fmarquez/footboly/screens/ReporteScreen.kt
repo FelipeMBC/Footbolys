@@ -1,7 +1,7 @@
 package com.fmarquez.footboly.screens
 
-import com.fmarquez.footboly.dialog.MatchSwapDialog
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,7 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Downloading
+import androidx.compose.material.icons.filled.StackedLineChart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -25,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import com.fmarquez.footboly.dialog.MatchSwapDialog
 import com.fmarquez.footboly.modelos.Player
@@ -55,6 +58,27 @@ fun ReporteScreen(
     var selectedSubstitute by remember { mutableStateOf<Player?>(null) }
     var showStopMatchDialog by remember { mutableStateOf(false) }
 
+    BackHandler(enabled = !match.isFinished) {
+        Toast.makeText(
+            context,
+            "Debes finalizar el partido para salir del reporte",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    LaunchedEffect(match.isFinished) {
+        if (match.isFinished) {
+            vm.selectFinishedMatch(match)
+            navHostController.navigate(Screen.MATCH_TIMELINE.route) {
+                popUpTo(navHostController.graph.findStartDestination().id) {
+                    inclusive = false
+                }
+                launchSingleTop = true
+                restoreState = false
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -65,7 +89,17 @@ fun ReporteScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navHostController.popBackStack() }) {
+                    IconButton(
+                        onClick = {
+                            if (!match.isFinished) {
+                                Toast.makeText(
+                                    context,
+                                    "Debes finalizar el partido para salir del reporte",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
+                    ) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
                     }
                 },
@@ -126,7 +160,7 @@ fun ReporteScreen(
                                 }
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Star,
+                                    imageVector = Icons.Default.StackedLineChart,
                                     contentDescription = "Estadística"
                                 )
                             }
@@ -140,38 +174,8 @@ fun ReporteScreen(
                                 enabled = !match.isFinished && match.substitutes.isNotEmpty()
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Star,
+                                    imageVector = Icons.Default.Downloading,
                                     contentDescription = "Cambio"
-                                )
-                            }
-                            if (showStopMatchDialog) {
-                                AlertDialog(
-                                    onDismissRequest = {
-                                        showStopMatchDialog = false
-                                    },
-                                    title = { Text("Finalizar partido") },
-                                    text = {
-                                        Text("¿Está seguro de finalizar el partido?")
-                                    },
-                                    dismissButton = {
-                                        TextButton(
-                                            onClick = {
-                                                showStopMatchDialog = false
-                                            }
-                                        ) {
-                                            Text("No")
-                                        }
-                                    },
-                                    confirmButton = {
-                                        TextButton(
-                                            onClick = {
-                                                vm.stopMatch()
-                                                showStopMatchDialog = false
-                                            }
-                                        ) {
-                                            Text("Sí")
-                                        }
-                                    }
                                 )
                             }
                         }
@@ -204,6 +208,37 @@ fun ReporteScreen(
                 }
             }
         }
+    }
+
+    if (showStopMatchDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showStopMatchDialog = false
+            },
+            title = { Text("Finalizar partido") },
+            text = {
+                Text("¿Está seguro de finalizar el partido?")
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showStopMatchDialog = false
+                    }
+                ) {
+                    Text("No")
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        vm.stopMatch()
+                        showStopMatchDialog = false
+                    }
+                ) {
+                    Text("Sí")
+                }
+            }
+        )
     }
 
     if (showSwapDialog && starterToSwap != null) {
