@@ -8,5 +8,6 @@ data class TeamEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
     val name: String,
-    val logoEmoji: String
+    val logoEmoji: String,
+    val logoUri: String? = null   // ← nuevo campo
 )

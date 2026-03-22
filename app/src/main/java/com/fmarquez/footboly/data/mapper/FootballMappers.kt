@@ -14,6 +14,7 @@ fun TeamWithPlayers.toDomain(): Team {
         id = team.id,
         name = team.name,
         logoEmoji = team.logoEmoji,
+        logoUri = team.logoUri,           // ← nuevo
         players = players
             .sortedBy { it.number }
             .map { player ->

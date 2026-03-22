@@ -66,7 +66,8 @@ class FootballRepository(
     suspend fun addCustomTeam(
         teamName: String,
         teamEmoji: String,
-        playerNames: List<String>
+        playerNames: List<String>,
+        logoUri: String? = null       // ← nuevo parámetro
     ): Team? {
         val cleanedTeamName = teamName.trim()
         val cleanedPlayers = playerNames
@@ -85,7 +86,8 @@ class FootballRepository(
             TeamEntity(
                 id = teamId,
                 name = cleanedTeamName,
-                logoEmoji = finalEmoji
+                logoEmoji = finalEmoji,
+                logoUri = logoUri         // ← se guarda en la entidad
             )
         )
 

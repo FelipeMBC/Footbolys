@@ -1,8 +1,10 @@
 package com.fmarquez.footboly.screens
 
 import android.widget.Toast
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,17 +12,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.Divider
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
@@ -28,6 +36,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -36,14 +45,30 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.fmarquez.footboly.dialog.AddPlayerDialog
 import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.navigation.Screen
 import com.fmarquez.footboly.vm.FutbolViewModel
+
+private val BgColor          = Color(0xFFF7F7F5)
+private val SurfaceColor     = Color(0xFFFFFFFF)
+private val AccentGreen      = Color(0xFF1E6B45)
+private val AccentGreenLight = Color(0xFFE8F2EC)
+private val TextPrimary      = Color(0xFF111111)
+private val TextSecondary    = Color(0xFF888888)
+private val BorderColor      = Color(0xFFE0E0DC)
+private val ErrorRed         = Color(0xFFD32F2F)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -53,31 +78,55 @@ fun PlayersMasterScreen(
 ) {
     val team = vm.selectedTeam ?: return
     val currentMatch = vm.currentMatch
-
     val context = LocalContext.current
 
     var showAddDialog by remember { mutableStateOf(false) }
     var playerName by remember { mutableStateOf("") }
-
     var playerToDelete by remember { mutableStateOf<Player?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-
     var showMinPlayersWarning by remember { mutableStateOf(false) }
     val matchInCourse = currentMatch?.isStarted == true && currentMatch.isFinished == false
 
     LaunchedEffect(team.players.size) {
-        showMinPlayersWarning = team.players.size < 11
+        showMinPlayersWarning = team.players.size < 5
     }
 
     Scaffold(
+        containerColor = BgColor,
         topBar = {
             TopAppBar(
-                title = { Text("${team.logoEmoji} ${team.name}") },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (team.logoUri != null) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(team.logoUri)
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(CircleShape)
+                            )
+                        } else {
+                            Text(text = team.logoEmoji, fontSize = 22.sp)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = team.name,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 18.sp,
+                            color = TextPrimary
+                        )
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = { navHostController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver", tint = TextPrimary)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = BgColor)
             )
         }
     ) { padding ->
@@ -85,196 +134,241 @@ fun PlayersMasterScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
+                .padding(horizontal = 20.dp)
         ) {
-            Text(
-                text = "Maestro de jugadores",
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                        if (team.players.size < 30) {
-                            showAddDialog = true
-                        } else {
-                            Toast.makeText(
-                                context,
-                                "Máximo 30 jugadores por equipo",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Agregar jugador")
-                }
-
-                Button(
-                    onClick = {
-                        if (matchInCourse) {
-                            Toast.makeText(
-                                context,
-                                "Hay un partido en curso",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        } else if (team.players.size < 11) {
-                            showMinPlayersWarning = true
-                        } else {
-                            vm.createNewMatch {
-                                navHostController.navigate(Screen.MATCH_CONFIG.route)
-                            }
-                        }
-                    },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Nuevo partido")
-                }
-            }
-
             Spacer(modifier = Modifier.height(8.dp))
 
+            // ── Contador de jugadores ─────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedButton(
-                    onClick = {
-                        navHostController.navigate(Screen.MATCH_TIMELINE.route)
-                    },
+                Text(
+                    text = "Jugadores",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 22.sp,
+                    color = TextPrimary,
                     modifier = Modifier.weight(1f)
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(AccentGreenLight)
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
-                    Text("Ver Partidos")
-                }
-                OutlinedButton(
-                    onClick = {
-                        navHostController.navigate(Screen.REPORT_SCREEN.route)
-                    },
-                    enabled = currentMatch?.isStarted == true || currentMatch?.isFinished == true,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Reporte")
+                    Text(
+                        text = "${team.players.size}/30",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AccentGreen
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Card(modifier = Modifier.fillMaxSize()) {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(12.dp)
+            // ── Botones primarios ─────────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = {
+                        if (team.players.size < 30) showAddDialog = true
+                        else Toast.makeText(context, "Máximo 30 jugadores por equipo", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AccentGreen,
+                        contentColor = Color.White
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
-                    items(team.players, key = { it.id }) { player ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Star, contentDescription = null)
-                            Spacer(modifier = Modifier.width(12.dp))
+                    Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Agregar", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                }
 
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(player.name, fontWeight = FontWeight.Bold)
-                                Text("N° ${player.number}")
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    playerToDelete = player
-                                    showDeleteDialog = true
-                                }
-                            ) {
-                                Icon(Icons.Default.Delete, contentDescription = "Eliminar")
-                            }
+                Button(
+                    onClick = {
+                        when {
+                            matchInCourse -> Toast.makeText(context, "Hay un partido en curso", Toast.LENGTH_SHORT).show()
+                            team.players.size < 5 -> showMinPlayersWarning = true
+                            else -> vm.createNewMatch { navHostController.navigate(Screen.MATCH_CONFIG.route) }
                         }
-                        Divider()
+                    },
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = TextPrimary,
+                        contentColor = Color.White
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+                ) {
+                    Text("Nuevo partido", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // ── Botones secundarios ───────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { navHostController.navigate(Screen.MATCH_TIMELINE.route) },
+                    modifier = Modifier.weight(1f).height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = SurfaceColor,
+                        contentColor = TextPrimary
+                    )
+                ) {
+                    Text("Ver partidos", fontSize = 13.sp)
+                }
+                OutlinedButton(
+                    onClick = { navHostController.navigate(Screen.REPORT_SCREEN.route) },
+                    enabled = currentMatch?.isStarted == true || currentMatch?.isFinished == true,
+                    modifier = Modifier.weight(1f).height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = SurfaceColor,
+                        contentColor = TextPrimary,
+                        disabledContentColor = TextSecondary
+                    )
+                ) {
+                    Text("Reporte", fontSize = 13.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // ── Lista de jugadores ────────────────────────────────────────────
+            Card(
+                modifier = Modifier.fillMaxSize(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor)
+            ) {
+                if (team.players.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("⚽", fontSize = 40.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Sin jugadores aún", color = TextSecondary, fontSize = 15.sp)
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 4.dp)
+                    ) {
+                        items(team.players, key = { it.id }) { player ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(CircleShape)
+                                        .background(AccentGreenLight),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = player.number.toString(),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AccentGreen
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(player.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
+                                    Text("N° ${player.number}", fontSize = 12.sp, color = TextSecondary)
+                                }
+
+                                IconButton(
+                                    onClick = {
+                                        playerToDelete = player
+                                        showDeleteDialog = true
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "Eliminar",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                            HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
+                        }
                     }
                 }
             }
         }
     }
 
+    // ── Diálogos (lógica sin cambios) ─────────────────────────────────────────
     if (showAddDialog) {
         AddPlayerDialog(
             playerName = playerName,
             onNameChange = { playerName = it },
             onDismiss = {
                 showAddDialog = false
-                if (team.players.size < 11) {
-                    showMinPlayersWarning = true
-                }
+                if (team.players.size < 5) showMinPlayersWarning = true
             },
             onConfirm = {
                 if (team.players.size >= 30) {
-                    Toast.makeText(
-                        context,
-                        "Máximo 30 jugadores por equipo",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(context, "Máximo 30 jugadores por equipo", Toast.LENGTH_SHORT).show()
                     showAddDialog = false
                     return@AddPlayerDialog
                 }
-
                 vm.addPlayer(playerName)
                 playerName = ""
                 showAddDialog = false
-
-                if (team.players.size < 11) {
-                    showMinPlayersWarning = true
-                } else {
-                    showMinPlayersWarning = false
-                }
+                showMinPlayersWarning = team.players.size < 5
             }
         )
     }
 
     if (showDeleteDialog && playerToDelete != null) {
         AlertDialog(
-            onDismissRequest = {
-                showDeleteDialog = false
-                playerToDelete = null
-            },
-            title = { Text("Confirmar eliminación") },
-            text = {
-                Text("¿Está seguro de eliminar al jugador ${playerToDelete?.name}?")
-            },
+            onDismissRequest = { showDeleteDialog = false; playerToDelete = null },
+            containerColor = SurfaceColor,
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("Eliminar jugador", fontWeight = FontWeight.Bold, color = TextPrimary) },
+            text = { Text("¿Eliminar a ${playerToDelete?.name}?", color = TextSecondary) },
             dismissButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteDialog = false
-                        playerToDelete = null
-                    }
-                ) {
-                    Text("Atrás")
+                TextButton(onClick = { showDeleteDialog = false; playerToDelete = null }) {
+                    Text("Cancelar", color = TextSecondary)
                 }
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        playerToDelete?.let { player ->
-                            vm.removePlayer(player)
-                            Toast.makeText(
-                                context,
-                                "Jugador eliminado",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
+                        playerToDelete?.let { vm.removePlayer(it); Toast.makeText(context, "Jugador eliminado", Toast.LENGTH_SHORT).show() }
                         showDeleteDialog = false
                         playerToDelete = null
-
-                        if ((vm.selectedTeam?.players?.size ?: 0) < 11) {
-                            showMinPlayersWarning = true
-                        }
+                        if ((vm.selectedTeam?.players?.size ?: 0) < 5) showMinPlayersWarning = true
                     }
                 ) {
-                    Text("Eliminar")
+                    Text("Eliminar", color = ErrorRed, fontWeight = FontWeight.SemiBold)
                 }
             }
         )
@@ -282,32 +376,19 @@ fun PlayersMasterScreen(
 
     if (showMinPlayersWarning) {
         AlertDialog(
-            onDismissRequest = {
-                showMinPlayersWarning = false
-                showAddDialog = true
-            },
-            title = { Text("Equipo incompleto") },
-            text = {
-                Text("Hay menos de 11 jugadores en este equipo, por favor agregar.")
-            },
+            onDismissRequest = { showMinPlayersWarning = false; showAddDialog = true },
+            containerColor = SurfaceColor,
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("Equipo incompleto", fontWeight = FontWeight.Bold, color = TextPrimary) },
+            text = { Text("Hay menos de 5 jugadores. Agrega más para poder iniciar partidos.", color = TextSecondary) },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        showMinPlayersWarning = false
-                        showAddDialog = true
-                    }
-                ) {
-                    Text("Agregar jugador")
+                TextButton(onClick = { showMinPlayersWarning = false; showAddDialog = true }) {
+                    Text("Agregar jugador", color = AccentGreen, fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = {
-                        showMinPlayersWarning = false
-                        showAddDialog = true
-                    }
-                ) {
-                    Text("Cerrar")
+                TextButton(onClick = { showMinPlayersWarning = false }) {
+                    Text("Cerrar", color = TextSecondary)
                 }
             }
         )

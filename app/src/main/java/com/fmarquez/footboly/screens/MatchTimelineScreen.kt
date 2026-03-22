@@ -1,5 +1,7 @@
 package com.fmarquez.footboly.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,9 +12,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowBack
@@ -39,7 +44,9 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -50,6 +57,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -57,14 +65,26 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.fmarquez.footboly.modelos.MatchRecord
 import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.navigation.Screen
 import com.fmarquez.footboly.vm.FutbolViewModel
+
+private val BgColor          = Color(0xFFF7F7F5)
+private val SurfaceColor     = Color(0xFFFFFFFF)
+private val AccentGreen      = Color(0xFF1E6B45)
+private val AccentGreenLight = Color(0xFFE8F2EC)
+private val TextPrimary      = Color(0xFF111111)
+private val TextSecondary    = Color(0xFF888888)
+private val BorderColor      = Color(0xFFE0E0DC)
+private val ErrorRed         = Color(0xFFD32F2F)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,27 +97,28 @@ fun MatchTimelineScreen(
     var matchToDelete by remember { mutableStateOf<MatchRecord?>(null) }
 
     Scaffold(
+        containerColor = BgColor,
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        if (selectedMatch == null) "Ver Partidos"
-                        else "Detalle del partido"
+                        text = if (selectedMatch == null) "Partidos" else "Detalle del partido",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 18.sp,
+                        color = TextPrimary
                     )
                 },
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            if (selectedMatch != null) {
-                                vm.clearSelectedFinishedMatch()
-                            } else {
-                                navHostController.popBackStack()
-                            }
+                            if (selectedMatch != null) vm.clearSelectedFinishedMatch()
+                            else navHostController.popBackStack()
                         }
                     ) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver", tint = TextPrimary)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = BgColor)
             )
         }
     ) { padding ->
@@ -107,10 +128,7 @@ fun MatchTimelineScreen(
                 onSelectMatch = { vm.selectFinishedMatch(it) },
                 onEditMatch = { vm.selectFinishedMatch(it) },
                 onDeleteMatch = { matchToDelete = it },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
+                modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp, vertical = 16.dp)
             )
         } else {
             MatchDetailContent(
@@ -120,26 +138,28 @@ fun MatchTimelineScreen(
                     vm.startEditingPlayerFromFinishedMatch(selectedMatch, player.id)
                     navHostController.navigate(Screen.PLAYER_STATS.route)
                 },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
+                modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp, vertical = 16.dp)
             )
         }
     }
 
+    // ── Diálogos ──────────────────────────────────────────────────────────────
     if (showAllDetailsDialog && selectedMatch != null) {
         AlertDialog(
             onDismissRequest = { showAllDetailsDialog = false },
-            title = { Text("Todos los eventos") },
+            containerColor = SurfaceColor,
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("Todos los eventos", fontWeight = FontWeight.Bold, color = TextPrimary) },
             text = {
                 Column {
                     if (selectedMatch.events.isEmpty()) {
-                        Text("No hay eventos registrados")
+                        Text("No hay eventos registrados", color = TextSecondary)
                     } else {
                         selectedMatch.events.forEach { event ->
                             Text(
-                                "${formatEventTitle(event.type, event.detail)} - ${event.playerName} - ${event.timestampLabel}"
+                                "${formatEventTitle(event.type, event.detail)} · ${event.playerName} · ${event.timestampLabel}",
+                                fontSize = 13.sp, color = TextSecondary,
+                                modifier = Modifier.padding(vertical = 2.dp)
                             )
                         }
                     }
@@ -147,7 +167,7 @@ fun MatchTimelineScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showAllDetailsDialog = false }) {
-                    Text("Cerrar")
+                    Text("Cerrar", color = AccentGreen)
                 }
             }
         )
@@ -156,22 +176,15 @@ fun MatchTimelineScreen(
     if (matchToDelete != null) {
         AlertDialog(
             onDismissRequest = { matchToDelete = null },
-            title = { Text("Eliminar partido") },
-            text = { Text("¿Está seguro de eliminar este partido guardado?") },
-            dismissButton = {
-                TextButton(onClick = { matchToDelete = null }) {
-                    Text("No")
-                }
-            },
+            containerColor = SurfaceColor,
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("Eliminar partido", fontWeight = FontWeight.Bold, color = TextPrimary) },
+            text = { Text("¿Eliminar este partido guardado?", color = TextSecondary) },
+            dismissButton = { TextButton(onClick = { matchToDelete = null }) { Text("Cancelar", color = TextSecondary) } },
             confirmButton = {
                 TextButton(
-                    onClick = {
-                        vm.deleteFinishedMatch(matchToDelete!!.id)
-                        matchToDelete = null
-                    }
-                ) {
-                    Text("Sí")
-                }
+                    onClick = { vm.deleteFinishedMatch(matchToDelete!!.id); matchToDelete = null }
+                ) { Text("Eliminar", color = ErrorRed, fontWeight = FontWeight.SemiBold) }
             }
         )
     }
@@ -179,22 +192,17 @@ fun MatchTimelineScreen(
     if (vm.shouldShowEditResultDialog) {
         AlertDialog(
             onDismissRequest = { vm.dismissEditResultDialog() },
-            title = { Text("Cambios realizados") },
+            containerColor = SurfaceColor,
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("Cambios realizados", fontWeight = FontWeight.Bold, color = TextPrimary) },
             text = {
                 Column {
-                    if (vm.lastEditChanges.isEmpty()) {
-                        Text("No hubo cambios")
-                    } else {
-                        vm.lastEditChanges.forEach { line ->
-                            Text(line)
-                        }
-                    }
+                    if (vm.lastEditChanges.isEmpty()) Text("No hubo cambios", color = TextSecondary)
+                    else vm.lastEditChanges.forEach { line -> Text(line, fontSize = 13.sp, color = TextSecondary) }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { vm.dismissEditResultDialog() }) {
-                    Text("Aceptar")
-                }
+                TextButton(onClick = { vm.dismissEditResultDialog() }) { Text("Aceptar", color = AccentGreen) }
             }
         )
     }
@@ -209,18 +217,15 @@ fun MatchHistoryList(
     modifier: Modifier = Modifier
 ) {
     if (matches.isEmpty()) {
-        Column(
-            modifier = modifier,
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text("Aún no hay partidos guardados")
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("🏟️", fontSize = 48.sp)
+                Spacer(modifier = Modifier.height(12.dp))
+                Text("Sin partidos guardados", color = TextSecondary, fontSize = 15.sp)
+            }
         }
     } else {
-        LazyColumn(
-            modifier = modifier,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(matches, key = { it.id }) { match ->
                 var expanded by remember { mutableStateOf(false) }
 
@@ -228,68 +233,63 @@ fun MatchHistoryList(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onSelectMatch(match) }
+                        .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Icono lateral
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(AccentGreenLight),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("⚽", fontSize = 22.sp)
+                        }
+
+                        Spacer(modifier = Modifier.width(14.dp))
+
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Partido: ${match.teamName}",
-                                fontWeight = FontWeight.Bold
+                                text = match.teamName,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp,
+                                color = TextPrimary
                             )
-
                             Spacer(modifier = Modifier.height(4.dp))
-
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.DateRange,
-                                    contentDescription = null
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(match.finishedAtLabel.ifBlank { "Sin fecha" })
+                                Icon(Icons.Default.DateRange, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(match.finishedAtLabel.ifBlank { "Sin fecha" }, fontSize = 12.sp, color = TextSecondary)
                             }
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            Text("Duración: ${match.totalSeconds / 60}:00")
-                            Text("Eventos: ${match.events.size}")
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text("${match.totalSeconds / 60} min · ${match.events.size} eventos", fontSize = 12.sp, color = TextSecondary)
                         }
 
                         Box {
                             IconButton(onClick = { expanded = true }) {
-                                Icon(
-                                    imageVector = Icons.Default.MoreVert,
-                                    contentDescription = "Opciones"
-                                )
+                                Icon(Icons.Default.MoreVert, contentDescription = "Opciones", tint = TextSecondary)
                             }
-
                             DropdownMenu(
                                 expanded = expanded,
-                                onDismissRequest = { expanded = false }
+                                onDismissRequest = { expanded = false },
+                                modifier = Modifier.background(SurfaceColor)
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("Editar") },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Edit, contentDescription = null)
-                                    },
-                                    onClick = {
-                                        expanded = false
-                                        onEditMatch(match)
-                                    }
+                                    text = { Text("Editar", color = TextPrimary) },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = TextSecondary) },
+                                    onClick = { expanded = false; onEditMatch(match) }
                                 )
-
                                 DropdownMenuItem(
-                                    text = { Text("Eliminar") },
-                                    leadingIcon = {
-                                        Icon(Icons.Default.Delete, contentDescription = null)
-                                    },
-                                    onClick = {
-                                        expanded = false
-                                        onDeleteMatch(match)
-                                    }
+                                    text = { Text("Eliminar", color = ErrorRed) },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = ErrorRed) },
+                                    onClick = { expanded = false; onDeleteMatch(match) }
                                 )
                             }
                         }
@@ -307,27 +307,23 @@ fun MatchDetailContent(
     onEditPlayerStats: (Player) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val matchPlayers = (match.starters + match.substitutes)
-        .distinctBy { it.id }
-        .sortedBy { it.number }
+    val matchPlayers = (match.starters + match.substitutes).distinctBy { it.id }.sortedBy { it.number }
 
-    LazyColumn(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // ── Resumen del partido ───────────────────────────────────────────────
         item {
             Card(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = AccentGreenLight),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text(
-                        text = "Partido terminado",
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text("Equipo: ${match.teamName}")
-                    Text("Duración: ${match.totalSeconds / 60}:00")
-                    Text("Eventos: ${match.events.size}")
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text("Partido terminado", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = AccentGreen)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    SummaryRow("Equipo", match.teamName)
+                    SummaryRow("Duración", "${match.totalSeconds / 60} min")
+                    SummaryRow("Eventos", "${match.events.size}")
                 }
             }
         }
@@ -335,50 +331,55 @@ fun MatchDetailContent(
         item {
             Button(
                 onClick = onShowAllDetails,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = TextPrimary, contentColor = Color.White),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
             ) {
-                Icon(Icons.Default.Visibility, contentDescription = null)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Ver todos los detalles")
+                Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Ver todos los eventos", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
         }
 
         item {
-            Text(
-                text = "Editar estadísticas por jugador",
-                fontWeight = FontWeight.Bold
-            )
+            Text("Estadísticas por jugador", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
         }
 
         if (matchPlayers.isEmpty()) {
-            item {
-                Text("No hay jugadores registrados en este partido")
-            }
+            item { Text("No hay jugadores registrados", color = TextSecondary) }
         } else {
             items(matchPlayers, key = { it.id }) { player ->
                 Card(
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().border(1.dp, BorderColor, RoundedCornerShape(12.dp)),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = player.name,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text("N° ${player.number}")
-                        }
-
-                        OutlinedButton(
-                            onClick = { onEditPlayerStats(player) }
+                        Box(
+                            modifier = Modifier.size(36.dp).clip(CircleShape).background(AccentGreenLight),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Edit, contentDescription = null)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Editar")
+                            Text(player.number.toString(), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AccentGreen)
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(player.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
+                            Text("N° ${player.number}", fontSize = 12.sp, color = TextSecondary)
+                        }
+                        OutlinedButton(
+                            onClick = { onEditPlayerStats(player) },
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Editar", fontSize = 13.sp)
                         }
                     }
                 }
@@ -386,16 +387,11 @@ fun MatchDetailContent(
         }
 
         item {
-            Text(
-                text = "Reporte",
-                fontWeight = FontWeight.Bold
-            )
+            Text("Línea de tiempo", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
         }
 
         if (match.events.isEmpty()) {
-            item {
-                Text("No hay eventos registrados")
-            }
+            item { Text("No hay eventos registrados", color = TextSecondary) }
         } else {
             items(match.events) { event ->
                 MatchEventReportCard(
@@ -407,9 +403,18 @@ fun MatchDetailContent(
             }
         }
 
-        item {
-            Spacer(modifier = Modifier.height(8.dp))
-        }
+        item { Spacer(modifier = Modifier.height(8.dp)) }
+    }
+}
+
+@Composable
+private fun SummaryRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, fontSize = 13.sp, color = AccentGreen.copy(alpha = 0.7f))
+        Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AccentGreen)
     }
 }
 
@@ -423,65 +428,63 @@ fun MatchEventReportCard(
     val isSwap = title == "Cambio" || detail.startsWith("Entra ")
 
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth().border(1.dp, BorderColor, RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(
-                modifier = Modifier.weight(1f)
+            // Icono del evento
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(AccentGreenLight),
+                contentAlignment = Alignment.Center
             ) {
+                Icon(
+                    imageVector = eventIcon(title, detail),
+                    contentDescription = title,
+                    tint = AccentGreen,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = if (isSwap) "Cambio" else title,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    color = TextPrimary
                 )
-
-                if (isSwap) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(detail.ifBlank { "Cambio de jugador" })
+                if (isSwap && detail.isNotBlank()) {
+                    Text(detail, fontSize = 12.sp, color = TextSecondary)
                 }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AccessTime,
-                        contentDescription = null
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(timeLabel.ifBlank { "00:00" })
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(playerName.ifBlank { "Sin jugador" })
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Person, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(12.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(playerName.ifBlank { "Sin jugador" }, fontSize = 12.sp, color = TextSecondary)
                 }
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Card {
-                Box(
-                    modifier = Modifier.padding(14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = eventIcon(title, detail),
-                        contentDescription = title
-                    )
+            // Badge de tiempo
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(BgColor)
+                    .border(1.dp, BorderColor, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.AccessTime, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(11.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(timeLabel.ifBlank { "00:00" }, fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
                 }
             }
         }
@@ -490,7 +493,6 @@ fun MatchEventReportCard(
 
 fun formatEventTitle(type: String, detail: String): String {
     if (type == "Cambio") return "Cambio"
-
     val count = detail.substringAfter(": ", "").toIntOrNull()
     return if (count != null) "$type - $count" else type
 }
