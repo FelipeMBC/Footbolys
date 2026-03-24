@@ -5,6 +5,7 @@ import com.fmarquez.footboly.data.local.entity.MatchEventEntity
 import com.fmarquez.footboly.data.local.relation.MatchWithDetails
 import com.fmarquez.footboly.data.local.relation.TeamWithPlayers
 import com.fmarquez.footboly.modelos.MatchEvent
+import com.fmarquez.footboly.modelos.MatchPlayerTime
 import com.fmarquez.footboly.modelos.MatchRecord
 import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.modelos.Team
@@ -67,6 +68,17 @@ fun MatchWithDetails.toDomain(): MatchRecord {
         }
         .toMutableList()
 
+    val mappedPlayerTimes = playerTimes
+        .associate { entity ->
+            entity.playerId to MatchPlayerTime(
+                playerId = entity.playerId,
+                accumulatedSeconds = entity.accumulatedSeconds,
+                isCurrentlyPlaying = entity.isCurrentlyPlaying,
+                lastEntrySecond = entity.lastEntrySecond
+            )
+        }
+        .toMutableMap()
+
     return MatchRecord(
         id = match.id,
         teamId = match.teamId,
@@ -78,6 +90,7 @@ fun MatchWithDetails.toDomain(): MatchRecord {
         substitutes = substitutes,
         statsByPlayerId = mutableMapOf(),
         events = mappedEvents,
+        playerTimes = mappedPlayerTimes,
         isStarted = match.isStarted,
         isFinished = match.isFinished,
         totalSeconds = match.totalSeconds,

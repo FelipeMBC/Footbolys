@@ -9,6 +9,7 @@ import androidx.room.Update
 import com.fmarquez.footboly.data.local.entity.MatchEntity
 import com.fmarquez.footboly.data.local.entity.MatchEventEntity
 import com.fmarquez.footboly.data.local.entity.MatchPlayerEntity
+import com.fmarquez.footboly.data.local.entity.MatchPlayerTimeEntity
 import com.fmarquez.footboly.data.local.relation.MatchWithDetails
 import kotlinx.coroutines.flow.Flow
 
@@ -35,6 +36,13 @@ interface MatchDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMatchPlayers(players: List<MatchPlayerEntity>)
+
+    // 👇 NUEVO: tiempos por jugador
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertMatchPlayerTimes(times: List<MatchPlayerTimeEntity>)
+
+    @Query("DELETE FROM match_player_times WHERE matchId = :matchId")
+    suspend fun deleteMatchPlayerTimesByMatchId(matchId: Int)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEvent(event: MatchEventEntity)

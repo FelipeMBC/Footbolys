@@ -4,6 +4,7 @@ import com.fmarquez.footboly.data.local.dao.MatchDao
 import com.fmarquez.footboly.data.local.dao.TeamDao
 import com.fmarquez.footboly.data.local.entity.MatchEntity
 import com.fmarquez.footboly.data.local.entity.MatchPlayerEntity
+import com.fmarquez.footboly.data.local.entity.MatchPlayerTimeEntity
 import com.fmarquez.footboly.data.local.entity.PlayerEntity
 import com.fmarquez.footboly.data.local.entity.TeamEntity
 import com.fmarquez.footboly.data.mapper.toDomain
@@ -11,6 +12,7 @@ import com.fmarquez.footboly.data.mapper.toEntity
 import com.fmarquez.footboly.datos.mockTeams
 import com.fmarquez.footboly.dialog.TempPlayerInput
 import com.fmarquez.footboly.modelos.MatchEvent
+import com.fmarquez.footboly.modelos.MatchPlayerTime
 import com.fmarquez.footboly.modelos.MatchRecord
 import com.fmarquez.footboly.modelos.Team
 import kotlinx.coroutines.flow.Flow
@@ -162,11 +164,37 @@ class FootballRepository(
 
         matchDao.insertMatch(matchEntity)
 
+        val initialPlayerTimes = team.players.map { player ->
+            MatchPlayerTimeEntity(
+                matchId = matchId,
+                playerId = player.id,
+                accumulatedSeconds = 0,
+                isCurrentlyPlaying = false,
+                lastEntrySecond = null
+            )
+        }
+
+        if (initialPlayerTimes.isNotEmpty()) {
+            matchDao.insertMatchPlayerTimes(initialPlayerTimes)
+        }
+
         return requireNotNull(matchDao.getMatchWithDetails(matchId)).toDomain()
     }
 
     suspend fun updateMatch(match: MatchRecord) {
         matchDao.updateMatch(match.toEntity())
+    }
+
+    private fun buildPlayerTimeEntities(match: MatchRecord): List<MatchPlayerTimeEntity> {
+        return match.playerTimes.values.map { playerTime ->
+            MatchPlayerTimeEntity(
+                matchId = match.id,
+                playerId = playerTime.playerId,
+                accumulatedSeconds = playerTime.accumulatedSeconds,
+                isCurrentlyPlaying = playerTime.isCurrentlyPlaying,
+                lastEntrySecond = playerTime.lastEntrySecond
+            )
+        }
     }
 
     suspend fun saveLineup(match: MatchRecord) {
@@ -200,11 +228,25 @@ class FootballRepository(
         if (players.isNotEmpty()) {
             matchDao.insertMatchPlayers(players)
         }
+
+        matchDao.deleteMatchPlayerTimesByMatchId(match.id)
+        val playerTimeEntities = buildPlayerTimeEntities(match)
+        if (playerTimeEntities.isNotEmpty()) {
+            matchDao.insertMatchPlayerTimes(playerTimeEntities)
+        }
     }
 
     suspend fun saveMatchAndLineup(match: MatchRecord) {
         updateMatch(match)
         saveLineup(match)
+    }
+
+    suspend fun savePlayerTimes(match: MatchRecord) {
+        matchDao.deleteMatchPlayerTimesByMatchId(match.id)
+        val playerTimeEntities = buildPlayerTimeEntities(match)
+        if (playerTimeEntities.isNotEmpty()) {
+            matchDao.insertMatchPlayerTimes(playerTimeEntities)
+        }
     }
 
     suspend fun addEvent(matchId: Int, event: MatchEvent) {

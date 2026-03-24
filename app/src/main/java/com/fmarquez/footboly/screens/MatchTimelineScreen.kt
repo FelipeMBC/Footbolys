@@ -172,6 +172,7 @@ fun MatchTimelineScreen(
         } else {
             MatchDetailContent(
                 match = selectedMatch,
+                vm = vm,
                 onShowAllDetails = { showAllDetailsDialog = true },
                 onEditPlayerStats = { player ->
                     vm.startEditingPlayerFromFinishedMatch(selectedMatch, player.id)
@@ -579,6 +580,7 @@ fun MatchHistoryList(
 @Composable
 fun MatchDetailContent(
     match: MatchRecord,
+    vm: FutbolViewModel,
     onShowAllDetails: () -> Unit,
     onEditPlayerStats: (Player) -> Unit,
     modifier: Modifier = Modifier
@@ -666,6 +668,7 @@ fun MatchDetailContent(
                 SavedMatchPlayerRow(
                     player = player,
                     role = "Titular",
+                    playedTime = vm.getFormattedPlayerTime(player.id, match),
                     teamColor = teamColor,
                     teamColorLight = teamColorLight,
                     onEditPlayerStats = { onEditPlayerStats(player) }
@@ -702,6 +705,7 @@ fun MatchDetailContent(
                 SavedMatchPlayerRow(
                     player = player,
                     role = "Reserva",
+                    playedTime = vm.getFormattedPlayerTime(player.id, match),
                     teamColor = teamColor,
                     teamColorLight = teamColorLight,
                     onEditPlayerStats = { onEditPlayerStats(player) }
@@ -736,6 +740,7 @@ fun MatchDetailContent(
 private fun SavedMatchPlayerRow(
     player: Player,
     role: String,
+    playedTime: String,
     teamColor: Color,
     teamColorLight: Color,
     onEditPlayerStats: () -> Unit
@@ -773,7 +778,7 @@ private fun SavedMatchPlayerRow(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(player.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
-                Text("$role · N° ${player.number}", fontSize = 12.sp, color = TextSecondary)
+                Text("$role · N° ${player.number} · $playedTime", fontSize = 12.sp, color = TextSecondary)
             }
 
             OutlinedButton(
@@ -793,7 +798,9 @@ private fun SavedMatchPlayerRow(
 @Composable
 private fun SummaryRow(label: String, value: String, teamColor: Color) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, fontSize = 13.sp, color = teamColor.copy(alpha = 0.7f))
@@ -804,7 +811,9 @@ private fun SummaryRow(label: String, value: String, teamColor: Color) {
 @Composable
 private fun SummaryRowWithIcon(label: String, value: String, teamColor: Color) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {

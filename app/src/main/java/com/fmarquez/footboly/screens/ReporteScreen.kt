@@ -42,6 +42,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +60,7 @@ import com.fmarquez.footboly.navigation.Screen
 import com.fmarquez.footboly.util.hexToColor
 import com.fmarquez.footboly.util.teamColorLight
 import com.fmarquez.footboly.vm.FutbolViewModel
+import kotlinx.coroutines.delay
 
 private val BgColor       = Color(0xFFF7F7F5)
 private val SurfaceColor  = Color(0xFFFFFFFF)
@@ -76,7 +79,14 @@ fun ReporteScreen(
     val team = vm.selectedTeam ?: return
     val match = vm.currentMatch ?: return
 
-    // Colores dinámicos del equipo
+    // ticker simple para recomponer cada segundo mientras el partido está en curso
+    val liveTick by produceState(initialValue = 0, key1 = match.isStarted, key2 = match.isFinished) {
+        while (match.isStarted && !match.isFinished) {
+            delay(1000)
+            value++
+        }
+    }
+
     val teamColor      = hexToColor(team.shirtColorHex)
     val teamColorLight = teamColorLight(teamColor)
 
@@ -152,7 +162,6 @@ fun ReporteScreen(
         ) {
             Spacer(modifier = Modifier.height(4.dp))
 
-            // ── Titulares header ──────────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -184,11 +193,13 @@ fun ReporteScreen(
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
                     items(match.starters, key = { it.id }) { player ->
+                        val playerTime = vm.getFormattedPlayerTime(player.id, vm.currentMatch)
                         PlayerRowItem(
                             player = player,
                             role = "Titular",
                             teamColor = teamColor,
                             teamColorLight = teamColorLight,
+                            playedTime = playerTime,
                             showStats = true,
                             showSwap = !match.isFinished && match.substitutes.isNotEmpty(),
                             onStats = {
@@ -208,7 +219,6 @@ fun ReporteScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ── Reservas header ───────────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -237,7 +247,9 @@ fun ReporteScreen(
             ) {
                 if (match.substitutes.isEmpty()) {
                     Box(
-                        modifier = Modifier.fillMaxSize().padding(20.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(20.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text("Sin reservas disponibles", color = TextSecondary, fontSize = 13.sp)
@@ -245,11 +257,13 @@ fun ReporteScreen(
                 } else {
                     LazyColumn(modifier = Modifier.padding(horizontal = 4.dp)) {
                         items(match.substitutes, key = { it.id }) { player ->
+                            val playerTime = vm.getFormattedPlayerTime(player.id, vm.currentMatch)
                             PlayerRowItem(
                                 player = player,
                                 role = "Reserva",
                                 teamColor = teamColor,
-                                teamColorLight = teamColorLight
+                                teamColorLight = teamColorLight,
+                                playedTime = playerTime
                             )
                             HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
                         }
@@ -269,7 +283,9 @@ fun ReporteScreen(
             title = { Text("Finalizar partido", fontWeight = FontWeight.Bold, color = TextPrimary) },
             text = { Text("¿Estás seguro de finalizar el partido?", color = TextSecondary) },
             dismissButton = {
-                TextButton(onClick = { showStopMatchDialog = false }) { Text("Cancelar", color = TextSecondary) }
+                TextButton(onClick = { showStopMatchDialog = false }) {
+                    Text("Cancelar", color = TextSecondary)
+                }
             },
             confirmButton = {
                 TextButton(onClick = { vm.stopMatch(); showStopMatchDialog = false }) {
@@ -285,7 +301,11 @@ fun ReporteScreen(
             substitutes = match.substitutes,
             selectedSubstitute = selectedSubstitute,
             onSelectSubstitute = { selectedSubstitute = it },
-            onDismiss = { showSwapDialog = false; starterToSwap = null; selectedSubstitute = null },
+            onDismiss = {
+                showSwapDialog = false
+                starterToSwap = null
+                selectedSubstitute = null
+            },
             onConfirm = {
                 val starter = starterToSwap
                 val substitute = selectedSubstitute
@@ -296,7 +316,9 @@ fun ReporteScreen(
                     Toast.makeText(context, "Selecciona una reserva", Toast.LENGTH_SHORT).show()
                     return@MatchSwapDialog
                 }
-                showSwapDialog = false; starterToSwap = null; selectedSubstitute = null
+                showSwapDialog = false
+                starterToSwap = null
+                selectedSubstitute = null
             }
         )
     }
@@ -308,6 +330,7 @@ private fun PlayerRowItem(
     role: String,
     teamColor: Color = Color(0xFF1E6B45),
     teamColorLight: Color = Color(0xFFE8F2EC),
+    playedTime: String = "00:00",
     showStats: Boolean = false,
     showSwap: Boolean = false,
     onStats: () -> Unit = {},
@@ -341,18 +364,32 @@ private fun PlayerRowItem(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(player.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
-            Text("$role · N° ${player.number}", fontSize = 12.sp, color = TextSecondary)
+            Text(
+                "$role · N° ${player.number} · $playedTime",
+                fontSize = 12.sp,
+                color = TextSecondary
+            )
         }
 
         if (showStats) {
             IconButton(onClick = onStats, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Default.StackedLineChart, contentDescription = "Estadísticas", tint = teamColor, modifier = Modifier.size(18.dp))
+                Icon(
+                    Icons.Default.StackedLineChart,
+                    contentDescription = "Estadísticas",
+                    tint = teamColor,
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
 
         if (showSwap) {
             IconButton(onClick = onSwap, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Default.Downloading, contentDescription = "Cambio", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                Icon(
+                    Icons.Default.Downloading,
+                    contentDescription = "Cambio",
+                    tint = TextSecondary,
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
     }

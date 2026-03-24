@@ -1,5 +1,4 @@
 package com.fmarquez.footboly.vm
-import com.fmarquez.footboly.data.local.dao.TeamDao
 
 import android.app.Application
 import android.net.Uri
@@ -11,9 +10,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.fmarquez.footboly.data.local.db.FootbolyDatabase
-import com.fmarquez.footboly.data.local.entity.PlayerEntity
 import com.fmarquez.footboly.data.repository.FootballRepository
+import com.fmarquez.footboly.dialog.TempPlayerInput
 import com.fmarquez.footboly.modelos.MatchEvent
+import com.fmarquez.footboly.modelos.MatchPlayerTime
 import com.fmarquez.footboly.modelos.MatchRecord
 import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.modelos.PlayerStats
@@ -23,7 +23,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
-import com.fmarquez.footboly.dialog.TempPlayerInput
 import java.io.FileOutputStream
 
 class FutbolViewModel(application: Application) : AndroidViewModel(application) {
@@ -209,6 +208,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
         viewModelScope.launch {
             repository.updateMatch(updatedMatch)
+            repository.savePlayerTimes(updatedMatch)
         }
     }
 
@@ -597,19 +597,80 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         return String.format("%02d:%02d", minutes, seconds)
     }
 
+    private fun elapsedSeconds(match: MatchRecord): Int {
+        return (match.totalSeconds - match.remainingSeconds).coerceAtLeast(0)
+    }
+
+    private fun initializePlayerTimesForMatch(match: MatchRecord): MutableMap<Int, MatchPlayerTime> {
+        val allPlayers = (match.starters + match.substitutes).distinctBy { it.id }
+        return allPlayers.associate { player ->
+            val isStarter = match.starters.any { it.id == player.id }
+            player.id to MatchPlayerTime(
+                playerId = player.id,
+                accumulatedSeconds = 0,
+                isCurrentlyPlaying = isStarter,
+                lastEntrySecond = if (isStarter) 0 else null
+            )
+        }.toMutableMap()
+    }
+
+    private fun finalizePlayingTimes(match: MatchRecord): MutableMap<Int, MatchPlayerTime> {
+        val elapsed = elapsedSeconds(match)
+        return match.playerTimes.mapValues { (_, playerTime) ->
+            if (playerTime.isCurrentlyPlaying) {
+                val entry = playerTime.lastEntrySecond ?: 0
+                playerTime.copy(
+                    accumulatedSeconds = playerTime.accumulatedSeconds + (elapsed - entry).coerceAtLeast(0),
+                    isCurrentlyPlaying = false,
+                    lastEntrySecond = null
+                )
+            } else {
+                playerTime
+            }
+        }.toMutableMap()
+    }
+
+    fun getDisplayedPlayerSeconds(playerId: Int, match: MatchRecord? = currentMatch): Int {
+        val safeMatch = match ?: return 0
+        val playerTime = safeMatch.playerTimes[playerId] ?: return 0
+        return if (playerTime.isCurrentlyPlaying) {
+            val elapsed = elapsedSeconds(safeMatch)
+            val entry = playerTime.lastEntrySecond ?: 0
+            playerTime.accumulatedSeconds + (elapsed - entry).coerceAtLeast(0)
+        } else {
+            playerTime.accumulatedSeconds
+        }
+    }
+
+    fun getFormattedPlayerTime(playerId: Int, match: MatchRecord? = currentMatch): String {
+        val totalSeconds = getDisplayedPlayerSeconds(playerId, match)
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return String.format("%02d:%02d", minutes, seconds)
+    }
+
     fun stopMatch() {
         val match = currentMatch ?: return
         matchTimerJob?.cancel()
+
+        val finalizedPlayerTimes = finalizePlayingTimes(match)
+
         val finishedMatch = match.copy(
+            playerTimes = finalizedPlayerTimes,
             isFinished = true,
             remainingSeconds = 0,
             finishedAtMillis = System.currentTimeMillis(),
             finishedAtLabel = getElapsedMatchTimeLabel(match)
         )
+
         currentMatch = finishedMatch
         putFinishedMatchLocally(finishedMatch)
         shouldShowFinishedDialog = true
-        viewModelScope.launch { repository.updateMatch(finishedMatch) }
+
+        viewModelScope.launch {
+            repository.updateMatch(finishedMatch)
+            repository.savePlayerTimes(finishedMatch)
+        }
     }
 
     fun getElapsedMatchTimeLabel(): String {
@@ -645,7 +706,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     fun addStatEvent(playerId: Int? = null, playerName: String, type: String, count: Int) {
         val match = currentMatch ?: return
         if (count <= 0) return
-        val elapsed = (match.totalSeconds - match.remainingSeconds).coerceAtLeast(0)
+        val elapsed = elapsedSeconds(match)
         val minute = elapsed / 60
         val timestamp = getElapsedMatchTimeLabel()
         val newEvent = MatchEvent(
@@ -693,9 +754,20 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         val match = currentMatch ?: return
         if (match.isStarted || match.isFinished) return
         clearEditingFinishedMatch()
-        val startedMatch = match.copy(isStarted = true, isFinished = false)
+
+        val initializedTimes = initializePlayerTimesForMatch(match)
+
+        val startedMatch = match.copy(
+            isStarted = true,
+            isFinished = false,
+            playerTimes = initializedTimes
+        )
         currentMatch = startedMatch
-        viewModelScope.launch { repository.updateMatch(startedMatch) }
+
+        viewModelScope.launch {
+            repository.updateMatch(startedMatch)
+            repository.savePlayerTimes(startedMatch)
+        }
 
         matchTimerJob?.cancel()
         matchTimerJob = viewModelScope.launch {
@@ -707,18 +779,22 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
                 val newRemaining = (updated.remainingSeconds - 1).coerceAtLeast(0)
 
                 if (newRemaining == 0) {
-                    val finishedMatch = updated.copy(
-                        remainingSeconds = 0,
+                    val zeroMatch = updated.copy(remainingSeconds = 0)
+                    val finalizedPlayerTimes = finalizePlayingTimes(zeroMatch)
+
+                    val finishedMatch = zeroMatch.copy(
+                        playerTimes = finalizedPlayerTimes,
                         isFinished = true,
                         finishedAtMillis = System.currentTimeMillis(),
-                        finishedAtLabel = getElapsedMatchTimeLabel(
-                            updated.copy(remainingSeconds = 0)
-                        )
+                        finishedAtLabel = getElapsedMatchTimeLabel(zeroMatch)
                     )
+
                     currentMatch = finishedMatch
                     putFinishedMatchLocally(finishedMatch)
                     shouldShowFinishedDialog = true
+
                     repository.updateMatch(finishedMatch)
+                    repository.savePlayerTimes(finishedMatch)
                     break
                 } else {
                     val tickingMatch = updated.copy(remainingSeconds = newRemaining)
@@ -739,7 +815,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
     fun registerSwap(starter: Player, sub: Player) {
         val match = currentMatch ?: return
-        val elapsed = (match.totalSeconds - match.remainingSeconds).coerceAtLeast(0)
+        val elapsed = elapsedSeconds(match)
         val minute = elapsed / 60
         val timestamp = getElapsedMatchTimeLabel()
 
@@ -751,6 +827,23 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
             removeAll { it.id == sub.id }
             add(starter)
         }
+
+        val currentTimes = match.playerTimes.toMutableMap()
+
+        val starterTime = currentTimes[starter.id] ?: MatchPlayerTime(playerId = starter.id)
+        val subTime = currentTimes[sub.id] ?: MatchPlayerTime(playerId = sub.id)
+
+        currentTimes[starter.id] = starterTime.copy(
+            accumulatedSeconds = starterTime.accumulatedSeconds +
+                    (elapsed - (starterTime.lastEntrySecond ?: 0)).coerceAtLeast(0),
+            isCurrentlyPlaying = false,
+            lastEntrySecond = null
+        )
+
+        currentTimes[sub.id] = subTime.copy(
+            isCurrentlyPlaying = true,
+            lastEntrySecond = elapsed
+        )
 
         val swapEvent = MatchEvent(
             minute = minute,
@@ -764,6 +857,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         val updatedMatch = match.copy(
             starters = updatedStarters,
             substitutes = updatedSubstitutes,
+            playerTimes = currentTimes,
             events = match.events.toMutableList().apply { add(swapEvent) }
         )
 
@@ -772,6 +866,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             repository.saveMatchAndLineup(updatedMatch)
             repository.addEvent(updatedMatch.id, swapEvent)
+            repository.savePlayerTimes(updatedMatch)
         }
     }
 
@@ -791,12 +886,34 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
             add(currentStarter)
         }
 
+        val elapsed = elapsedSeconds(match)
+        val currentTimes = match.playerTimes.toMutableMap()
+
+        val starterTime = currentTimes[currentStarter.id] ?: MatchPlayerTime(playerId = currentStarter.id)
+        val subTime = currentTimes[currentSub.id] ?: MatchPlayerTime(playerId = currentSub.id)
+
+        currentTimes[currentStarter.id] = starterTime.copy(
+            accumulatedSeconds = starterTime.accumulatedSeconds +
+                    (elapsed - (starterTime.lastEntrySecond ?: 0)).coerceAtLeast(0),
+            isCurrentlyPlaying = false,
+            lastEntrySecond = null
+        )
+
+        currentTimes[currentSub.id] = subTime.copy(
+            isCurrentlyPlaying = true,
+            lastEntrySecond = elapsed
+        )
+
         val updatedMatch = match.copy(
             starters = updatedStarters,
-            substitutes = updatedSubstitutes
+            substitutes = updatedSubstitutes,
+            playerTimes = currentTimes
         )
         currentMatch = updatedMatch
-        viewModelScope.launch { repository.saveMatchAndLineup(updatedMatch) }
+        viewModelScope.launch {
+            repository.saveMatchAndLineup(updatedMatch)
+            repository.savePlayerTimes(updatedMatch)
+        }
     }
 
     fun getPlayerStats(playerId: Int): PlayerStats {

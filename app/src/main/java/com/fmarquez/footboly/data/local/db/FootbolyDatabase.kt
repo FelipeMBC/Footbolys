@@ -11,6 +11,7 @@ import com.fmarquez.footboly.data.local.dao.TeamDao
 import com.fmarquez.footboly.data.local.entity.MatchEntity
 import com.fmarquez.footboly.data.local.entity.MatchEventEntity
 import com.fmarquez.footboly.data.local.entity.MatchPlayerEntity
+import com.fmarquez.footboly.data.local.entity.MatchPlayerTimeEntity
 import com.fmarquez.footboly.data.local.entity.PlayerEntity
 import com.fmarquez.footboly.data.local.entity.TeamEntity
 
@@ -39,15 +40,42 @@ val MIGRATION_4_5 = object : Migration(4, 5) {
     }
 }
 
+val MIGRATION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS match_player_times (
+                matchId INTEGER NOT NULL,
+                playerId INTEGER NOT NULL,
+                accumulatedSeconds INTEGER NOT NULL DEFAULT 0,
+                isCurrentlyPlaying INTEGER NOT NULL DEFAULT 0,
+                lastEntrySecond INTEGER,
+                PRIMARY KEY(matchId, playerId),
+                FOREIGN KEY(matchId) REFERENCES matches(id) ON DELETE CASCADE
+            )
+            """.trimIndent()
+        )
+
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_match_player_times_matchId ON match_player_times(matchId)"
+        )
+
+        db.execSQL(
+            "CREATE INDEX IF NOT EXISTS index_match_player_times_playerId ON match_player_times(playerId)"
+        )
+    }
+}
+
 @Database(
     entities = [
         TeamEntity::class,
         PlayerEntity::class,
         MatchEntity::class,
         MatchPlayerEntity::class,
-        MatchEventEntity::class
+        MatchEventEntity::class,
+        MatchPlayerTimeEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class FootbolyDatabase : RoomDatabase() {
@@ -65,7 +93,13 @@ abstract class FootbolyDatabase : RoomDatabase() {
                     FootbolyDatabase::class.java,
                     "footboly_db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                    .addMigrations(
+                        MIGRATION_1_2,
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5,
+                        MIGRATION_5_6
+                    )
                     .build()
                 INSTANCE = instance
                 instance
