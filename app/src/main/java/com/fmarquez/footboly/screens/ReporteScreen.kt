@@ -148,7 +148,7 @@ fun ReporteScreen(
         ) {
             Spacer(modifier = Modifier.height(4.dp))
 
-            // ── Titulares ─────────────────────────────────────────────────────
+            // ── Titulares header ──────────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -166,9 +166,11 @@ fun ReporteScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // ── Titulares card — weight(1f) para scrollear dentro de la caja ─
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .weight(1f)                // ← altura proporcional, scrolleable
                     .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceColor),
@@ -201,7 +203,7 @@ fun ReporteScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ── Reservas ──────────────────────────────────────────────────────
+            // ── Reservas header ───────────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -219,9 +221,11 @@ fun ReporteScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // ── Reservas card — weight(0.6f) para ocupar menos que titulares ─
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .weight(0.6f)              // ← altura proporcional, scrolleable
                     .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceColor),
@@ -229,7 +233,7 @@ fun ReporteScreen(
             ) {
                 if (match.substitutes.isEmpty()) {
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(20.dp),
+                        modifier = Modifier.fillMaxSize().padding(20.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text("Sin reservas disponibles", color = TextSecondary, fontSize = 13.sp)

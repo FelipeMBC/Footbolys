@@ -440,13 +440,26 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
         val key = statsDraftKey(match.id, playerId)
         val draft = playerStatsDrafts[key] ?: return emptyList()
-        val timestamp = getElapsedMatchTimeLabel()
 
+        val timestamp = getElapsedMatchTimeLabel()
+        val elapsed = (match.totalSeconds - match.remainingSeconds).coerceAtLeast(0)
+        val minute = elapsed / 60
+
+        val newEvents = mutableListOf<MatchEvent>()
         val savedLines = mutableListOf<String>()
 
         fun register(type: String, count: Int) {
             if (count > 0) {
-                addStatEvent(playerId = player.id, playerName = player.name, type = type, count = count)
+                newEvents.add(
+                    MatchEvent(
+                        minute = minute,
+                        type = type,
+                        playerId = player.id,
+                        playerName = player.name,
+                        detail = "$type: $count",
+                        timestampLabel = timestamp
+                    )
+                )
                 savedLines.add("$type: $count $timestamp")
             }
         }
@@ -469,6 +482,19 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         register("Tiro Libre en Contra", draft.tiroLibreEnContra)
         register("Tiro Libre Lateral a Favor", draft.tiroLibreLateralAFavor)
         register("Tiro Libre Lateral en Contra", draft.tiroLibreLateralEnContra)
+
+        if (newEvents.isNotEmpty()) {
+            // Actualizar estado local de una sola vez
+            val updatedMatch = match.copy(
+                events = match.events.toMutableList().apply { addAll(newEvents) }
+            )
+            currentMatch = updatedMatch
+
+            // Un solo insert batch — sin carreras de IDs
+            viewModelScope.launch {
+                repository.addEvents(match.id, newEvents)
+            }
+        }
 
         return savedLines
     }
@@ -558,14 +584,29 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     fun toggleStarter(player: Player) {
         val match = currentMatch ?: return
         if (match.isStarted || match.isFinished) return
+
         val updatedStarters = match.starters.toMutableList()
         val updatedSubs = match.substitutes.toMutableList()
+
         val exists = updatedStarters.any { it.id == player.id }
-        if (exists) updatedStarters.removeAll { it.id == player.id }
-        else if (updatedStarters.size < 11 && updatedSubs.none { it.id == player.id }) updatedStarters.add(player)
-        val updatedMatch = match.copy(starters = updatedStarters, substitutes = updatedSubs)
+
+        if (exists) {
+            updatedStarters.removeAll { it.id == player.id }
+        } else if (updatedSubs.none { it.id == player.id }) {
+            // 🔥 SIN LÍMITE
+            updatedStarters.add(player)
+        }
+
+        val updatedMatch = match.copy(
+            starters = updatedStarters,
+            substitutes = updatedSubs
+        )
+
         currentMatch = updatedMatch
-        viewModelScope.launch { repository.saveMatchAndLineup(updatedMatch) }
+
+        viewModelScope.launch {
+            repository.saveMatchAndLineup(updatedMatch)
+        }
     }
 
     fun addStatEvent(playerId: Int? = null, playerName: String, type: String, count: Int) {
@@ -592,14 +633,29 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     fun toggleSubstitute(player: Player) {
         val match = currentMatch ?: return
         if (match.isStarted || match.isFinished) return
+
         val updatedStarters = match.starters.toMutableList()
         val updatedSubs = match.substitutes.toMutableList()
+
         val exists = updatedSubs.any { it.id == player.id }
-        if (exists) updatedSubs.removeAll { it.id == player.id }
-        else if (updatedSubs.size < 5 && updatedStarters.none { it.id == player.id }) updatedSubs.add(player)
-        val updatedMatch = match.copy(starters = updatedStarters, substitutes = updatedSubs)
+
+        if (exists) {
+            updatedSubs.removeAll { it.id == player.id }
+        } else if (updatedStarters.none { it.id == player.id }) {
+            // 🔥 SIN LÍMITE
+            updatedSubs.add(player)
+        }
+
+        val updatedMatch = match.copy(
+            starters = updatedStarters,
+            substitutes = updatedSubs
+        )
+
         currentMatch = updatedMatch
-        viewModelScope.launch { repository.saveMatchAndLineup(updatedMatch) }
+
+        viewModelScope.launch {
+            repository.saveMatchAndLineup(updatedMatch)
+        }
     }
 
     fun startMatch() {

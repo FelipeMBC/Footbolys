@@ -105,6 +105,12 @@ fun PlayerStatsScreen(
         DualStatUi("T.L. Lateral", "Tiro Libre Lateral a Favor", "Tiro Libre Lateral en Contra", Icons.Default.CheckCircle, Icons.Default.Close)
     )
 
+    val role = when {
+        activeMatch.starters.any { it.id == player.id } -> "Titular"
+        activeMatch.substitutes.any { it.id == player.id } -> "Reserva"
+        else -> ""
+    }
+
     Scaffold(
         containerColor = BgColor,
         topBar = {
@@ -182,7 +188,11 @@ fun PlayerStatsScreen(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(player.name, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextPrimary)
-                        Text("N° ${player.number}", fontSize = 13.sp, color = TextSecondary)
+                        Text(
+                            text = if (role.isNotEmpty()) "$role · N° ${player.number}" else "N° ${player.number}",
+                            fontSize = 13.sp,
+                            color = TextSecondary
+                        )
                         Spacer(modifier = Modifier.height(4.dp))
                         Box(
                             modifier = Modifier

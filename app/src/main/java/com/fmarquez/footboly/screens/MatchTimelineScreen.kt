@@ -307,7 +307,8 @@ fun MatchDetailContent(
     onEditPlayerStats: (Player) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val matchPlayers = (match.starters + match.substitutes).distinctBy { it.id }.sortedBy { it.number }
+    val starters = match.starters.sortedBy { it.number }
+    val substitutes = match.substitutes.sortedBy { it.number }
 
     LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // ── Resumen del partido ───────────────────────────────────────────────
@@ -343,46 +344,90 @@ fun MatchDetailContent(
         }
 
         item {
-            Text("Estadísticas por jugador", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
+            Text("Jugadores del partido", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
         }
 
-        if (matchPlayers.isEmpty()) {
-            item { Text("No hay jugadores registrados", color = TextSecondary) }
-        } else {
-            items(matchPlayers, key = { it.id }) { player ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().border(1.dp, BorderColor, RoundedCornerShape(12.dp)),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = SurfaceColor),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Titulares",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(AccentGreenLight)
+                        .padding(horizontal = 10.dp, vertical = 3.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier.size(36.dp).clip(CircleShape).background(AccentGreenLight),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(player.number.toString(), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = AccentGreen)
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(player.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
-                            Text("N° ${player.number}", fontSize = 12.sp, color = TextSecondary)
-                        }
-                        OutlinedButton(
-                            onClick = { onEditPlayerStats(player) },
-                            shape = RoundedCornerShape(10.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
-                        ) {
-                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Editar", fontSize = 13.sp)
-                        }
-                    }
+                    Text(
+                        "${starters.size}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = AccentGreen
+                    )
                 }
+            }
+        }
+
+        if (starters.isEmpty()) {
+            item { Text("No hubo titulares registrados", color = TextSecondary) }
+        } else {
+            items(starters, key = { it.id }) { player ->
+                SavedMatchPlayerRow(
+                    player = player,
+                    role = "Titular",
+                    onEditPlayerStats = { onEditPlayerStats(player) }
+                )
+            }
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Reservas",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFFF5F5F5))
+                        .padding(horizontal = 10.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        "${substitutes.size}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextSecondary
+                    )
+                }
+            }
+        }
+
+        if (substitutes.isEmpty()) {
+            item { Text("No hubo reservas registradas", color = TextSecondary) }
+        } else {
+            items(substitutes, key = { it.id }) { player ->
+                SavedMatchPlayerRow(
+                    player = player,
+                    role = "Reserva",
+                    onEditPlayerStats = { onEditPlayerStats(player) }
+                )
             }
         }
 
@@ -404,6 +449,73 @@ fun MatchDetailContent(
         }
 
         item { Spacer(modifier = Modifier.height(8.dp)) }
+    }
+}
+
+@Composable
+private fun SavedMatchPlayerRow(
+    player: Player,
+    role: String,
+    onEditPlayerStats: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, BorderColor, RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (role == "Titular") AccentGreenLight else Color(0xFFF5F5F5)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = player.number.toString(),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (role == "Titular") AccentGreen else TextSecondary
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    player.name,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    color = TextPrimary
+                )
+                Text(
+                    "$role · N° ${player.number}",
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                )
+            }
+
+            OutlinedButton(
+                onClick = onEditPlayerStats,
+                shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
+            ) {
+                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Editar", fontSize = 13.sp)
+            }
+        }
     }
 }
 

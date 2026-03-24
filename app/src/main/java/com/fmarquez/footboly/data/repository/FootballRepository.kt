@@ -204,6 +204,16 @@ class FootballRepository(
         matchDao.insertEvent(event.toEntity(nextEventId, matchId))
     }
 
+    suspend fun addEvents(matchId: Int, events: List<MatchEvent>) {
+        if (events.isEmpty()) return
+        var nextEventId = matchDao.getNextEventId()
+        matchDao.insertEvents(
+            events.map { event ->
+                event.toEntity(nextEventId++, matchId)
+            }
+        )
+    }
+
     suspend fun replacePlayerEvents(
         matchId: Int,
         playerId: Int,

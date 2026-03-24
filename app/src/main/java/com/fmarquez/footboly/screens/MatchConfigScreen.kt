@@ -61,15 +61,13 @@ import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.navigation.Screen
 import com.fmarquez.footboly.vm.FutbolViewModel
 
-// ── Paleta compartida ────────────────────────────────────────────────────────
-private val BgColor         = Color(0xFFF7F7F5)
-private val SurfaceColor    = Color(0xFFFFFFFF)
-private val AccentGreen     = Color(0xFF1E6B45)
-private val AccentGreenLight= Color(0xFFE8F2EC)
-private val TextPrimary     = Color(0xFF111111)
-private val TextSecondary   = Color(0xFF888888)
-private val BorderColor     = Color(0xFFE0E0DC)
-private val ErrorRed        = Color(0xFFD32F2F)
+private val BgColor = Color(0xFFF7F7F5)
+private val SurfaceColor = Color(0xFFFFFFFF)
+private val AccentGreen = Color(0xFF1E6B45)
+private val AccentGreenLight = Color(0xFFE8F2EC)
+private val TextPrimary = Color(0xFF111111)
+private val TextSecondary = Color(0xFF888888)
+private val BorderColor = Color(0xFFE0E0DC)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,10 +80,7 @@ fun MatchConfigScreen(
     val context = LocalContext.current
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
-    var showIncompleteDialog by remember { mutableStateOf(false) }
     var showDurationDialog by remember { mutableStateOf(false) }
-    var missingStarters by remember { mutableIntStateOf(0) }
-    var missingSubs by remember { mutableIntStateOf(0) }
     var matchDurationMinutes by remember { mutableFloatStateOf(60f) }
 
     LaunchedEffect(match.isStarted, match.isFinished) {
@@ -119,8 +114,8 @@ fun MatchConfigScreen(
                     Text(
                         text = when {
                             match.isFinished -> "Partido terminado"
-                            match.isStarted  -> vm.getFormattedMatchTime()
-                            else             -> team.name
+                            match.isStarted -> vm.getFormattedMatchTime()
+                            else -> team.name
                         },
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 18.sp,
@@ -131,33 +126,40 @@ fun MatchConfigScreen(
                     IconButton(
                         onClick = {
                             if (match.isStarted && !match.isFinished) {
-                                Toast.makeText(context, "No puedes volver mientras el partido está en curso", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    "No puedes volver mientras el partido está en curso",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             } else {
                                 navHostController.popBackStack()
                             }
                         }
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = TextPrimary)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Volver",
+                            tint = TextPrimary
+                        )
                     }
                 },
                 actions = {
                     if (!match.isStarted && !match.isFinished) {
                         IconButton(
                             onClick = {
-                                val currentStarters = match.starters.size
-                                val currentSubs = match.substitutes.size
-                                val totalSeleccionados = currentStarters + currentSubs
+                                val totalSeleccionados =
+                                    match.starters.size + match.substitutes.size
 
                                 if (totalSeleccionados < 5) {
-                                    Toast.makeText(context, "Selecciona al menos 5 jugadores para iniciar", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        context,
+                                        "Selecciona al menos 5 jugadores para iniciar",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                     return@IconButton
                                 }
 
-                                missingStarters = (11 - currentStarters).coerceAtLeast(0)
-                                missingSubs = (5 - currentSubs).coerceAtLeast(0)
-
-                                if (missingStarters > 0 || missingSubs > 0) showIncompleteDialog = true
-                                else openDurationDialog()
+                                openDurationDialog()
                             },
                             modifier = Modifier
                                 .padding(end = 8.dp)
@@ -165,7 +167,12 @@ fun MatchConfigScreen(
                                 .clip(CircleShape)
                                 .background(AccentGreen)
                         ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "Iniciar partido", tint = Color.White, modifier = Modifier.size(18.dp))
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = "Iniciar partido",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
                 },
@@ -178,7 +185,6 @@ fun MatchConfigScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // ── Tabs ─────────────────────────────────────────────────────────
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = SurfaceColor,
@@ -191,11 +197,18 @@ fun MatchConfigScreen(
                             .background(AccentGreen)
                     )
                 },
-                divider = { Box(modifier = Modifier.height(1.dp).fillMaxWidth().background(BorderColor)) }
+                divider = {
+                    Box(
+                        modifier = Modifier
+                            .height(1.dp)
+                            .fillMaxWidth()
+                            .background(BorderColor)
+                    )
+                }
             ) {
                 listOf(
-                    "Titulares (${match.starters.size}/11)",
-                    "Reservas (${match.substitutes.size}/5)"
+                    "Titulares (${match.starters.size})",
+                    "Reservas (${match.substitutes.size})"
                 ).forEachIndexed { i, title ->
                     Tab(
                         selected = selectedTab == i,
@@ -217,7 +230,11 @@ fun MatchConfigScreen(
                     .fillMaxSize()
                     .padding(horizontal = 20.dp, vertical = 16.dp)
             ) {
-                val label = if (selectedTab == 0) "Selecciona hasta 11 titulares" else "Selecciona hasta 5 reservas"
+                val label = if (selectedTab == 0) {
+                    "Selecciona los titulares que quieras"
+                } else {
+                    "Selecciona las reservas que quieras"
+                }
 
                 Text(
                     text = label,
@@ -226,13 +243,22 @@ fun MatchConfigScreen(
                     fontWeight = FontWeight.Normal
                 )
 
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val totalSeleccionados = match.starters.size + match.substitutes.size
+                Text(
+                    text = "Mínimo requerido para iniciar: 5 jugadores · Seleccionados: $totalSeleccionados",
+                    fontSize = 12.sp,
+                    color = if (totalSeleccionados >= 5) AccentGreen else TextSecondary
+                )
+
                 Spacer(modifier = Modifier.height(12.dp))
 
                 if (selectedTab == 0) {
                     SelectablePlayersList(
                         allPlayers = team.players,
                         selectedPlayers = match.starters,
-                        max = 11,
+                        max = team.players.size,
                         blockedPlayers = match.substitutes,
                         enabled = !match.isStarted && !match.isFinished,
                         onToggle = { vm.toggleStarter(it) }
@@ -241,7 +267,7 @@ fun MatchConfigScreen(
                     SelectablePlayersList(
                         allPlayers = team.players,
                         selectedPlayers = match.substitutes,
-                        max = 5,
+                        max = team.players.size,
                         blockedPlayers = match.starters,
                         enabled = !match.isStarted && !match.isFinished,
                         onToggle = { vm.toggleSubstitute(it) }
@@ -251,62 +277,17 @@ fun MatchConfigScreen(
         }
     }
 
-    // ── Diálogo: jugadores insuficientes ─────────────────────────────────────
-    if (showIncompleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showIncompleteDialog = false },
-            containerColor = SurfaceColor,
-            shape = RoundedCornerShape(20.dp),
-            title = {
-                Text("Equipo incompleto", fontWeight = FontWeight.Bold, color = TextPrimary)
-            },
-            text = {
-                Column {
-                    Text("No completaste la cantidad habitual de jugadores.", color = TextSecondary, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    StatRow("Titulares", "${match.starters.size}/11")
-                    StatRow("Reservas", "${match.substitutes.size}/5")
-                    if (missingStarters > 0) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Faltan $missingStarters titulares", color = ErrorRed, fontSize = 13.sp)
-                    }
-                    if (missingSubs > 0) {
-                        Text("Faltan $missingSubs reservas", color = ErrorRed, fontSize = 13.sp)
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showIncompleteDialog = false }) {
-                    Text("Volver", color = TextSecondary)
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val totalSeleccionados = match.starters.size + match.substitutes.size
-                        if (totalSeleccionados < 5) {
-                            Toast.makeText(context, "Selecciona al menos 5 jugadores", Toast.LENGTH_SHORT).show()
-                            showIncompleteDialog = false
-                            return@TextButton
-                        }
-                        showIncompleteDialog = false
-                        openDurationDialog()
-                    }
-                ) {
-                    Text("Continuar de todas formas", color = AccentGreen, fontWeight = FontWeight.SemiBold)
-                }
-            }
-        )
-    }
-
-    // ── Diálogo: duración del partido ─────────────────────────────────────────
     if (showDurationDialog) {
         AlertDialog(
             onDismissRequest = { showDurationDialog = false },
             containerColor = SurfaceColor,
             shape = RoundedCornerShape(20.dp),
             title = {
-                Text("Duración del partido", fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text(
+                    "Duración del partido",
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
             },
             text = {
                 Column {
@@ -361,19 +342,6 @@ fun MatchConfigScreen(
 }
 
 @Composable
-private fun StatRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label, fontSize = 14.sp, color = TextSecondary)
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
-    }
-}
-
-@Composable
 fun SelectablePlayersList(
     allPlayers: List<Player>,
     selectedPlayers: List<Player>,
@@ -388,15 +356,15 @@ fun SelectablePlayersList(
             val isBlocked = blockedPlayers.any { it.id == player.id }
 
             val cardBg = when {
-                !enabled   -> Color(0xFFF0F0EE)
-                isBlocked  -> Color(0xFFF5F5F5)
+                !enabled -> Color(0xFFF0F0EE)
+                isBlocked -> Color(0xFFF5F5F5)
                 isSelected -> AccentGreenLight
-                else       -> SurfaceColor
+                else -> SurfaceColor
             }
 
             val borderCol = when {
                 isSelected -> AccentGreen.copy(alpha = 0.4f)
-                else       -> BorderColor
+                else -> BorderColor
             }
 
             Card(
@@ -416,7 +384,6 @@ fun SelectablePlayersList(
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Número del jugador en pastilla
                     Box(
                         modifier = Modifier
                             .size(36.dp)
@@ -444,16 +411,16 @@ fun SelectablePlayersList(
 
                     Text(
                         text = when {
-                            !enabled   -> "Bloqueado"
-                            isBlocked  -> "En otra lista"
+                            !enabled -> "Bloqueado"
+                            isBlocked -> "En otra lista"
                             isSelected -> "✓"
-                            else       -> ""
+                            else -> ""
                         },
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = when {
                             isSelected -> AccentGreen
-                            else       -> TextSecondary
+                            else -> TextSecondary
                         }
                     )
                 }
