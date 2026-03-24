@@ -13,8 +13,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -24,17 +24,22 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.fmarquez.footboly.util.hexToColor
+import kotlin.math.roundToInt
 
 private val SurfaceColor     = Color(0xFFFFFFFF)
 private val AccentGreen      = Color(0xFF1E6B45)
@@ -49,6 +56,11 @@ private val AccentGreenLight = Color(0xFFE8F2EC)
 private val TextPrimary      = Color(0xFF111111)
 private val TextSecondary    = Color(0xFF888888)
 private val BorderColor      = Color(0xFFE0E0DC)
+
+data class TempPlayerInput(
+    val name: String,
+    val number: Int
+)
 
 @Composable
 private fun MinimalTextField(
@@ -115,14 +127,132 @@ private fun TabSelector(
     }
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// AddTeamPlayersDialog
-// ────────────────────────────────────────────────────────────────────────────
+private fun colorToHex(color: Color): String {
+    val r = (color.red * 255).roundToInt().coerceIn(0, 255)
+    val g = (color.green * 255).roundToInt().coerceIn(0, 255)
+    val b = (color.blue * 255).roundToInt().coerceIn(0, 255)
+    return String.format("#%02X%02X%02X", r, g, b)
+}
+
+@Composable
+fun TeamColorPickerDialog(
+    initialColorHex: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    val initialColor = hexToColor(initialColorHex)
+
+    var red by remember { mutableFloatStateOf(initialColor.red * 255f) }
+    var green by remember { mutableFloatStateOf(initialColor.green * 255f) }
+    var blue by remember { mutableFloatStateOf(initialColor.blue * 255f) }
+
+    val previewColor = Color(
+        red = (red / 255f).coerceIn(0f, 1f),
+        green = (green / 255f).coerceIn(0f, 1f),
+        blue = (blue / 255f).coerceIn(0f, 1f),
+        alpha = 1f
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceColor,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Text(
+                text = "Color de camiseta",
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = TextPrimary
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(
+                    text = "Desliza para elegir el color del equipo.",
+                    fontSize = 13.sp,
+                    color = TextSecondary
+                )
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(previewColor)
+                        .border(1.dp, BorderColor, RoundedCornerShape(16.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = colorToHex(previewColor),
+                        color = if (previewColor.luminance() > 0.5f) Color.Black else Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                }
+
+                Column {
+                    Text("Rojo: ${red.roundToInt()}", fontSize = 12.sp, color = TextSecondary)
+                    Slider(
+                        value = red,
+                        onValueChange = { red = it },
+                        valueRange = 0f..255f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = previewColor,
+                            activeTrackColor = previewColor,
+                            inactiveTrackColor = BorderColor
+                        )
+                    )
+                }
+
+                Column {
+                    Text("Verde: ${green.roundToInt()}", fontSize = 12.sp, color = TextSecondary)
+                    Slider(
+                        value = green,
+                        onValueChange = { green = it },
+                        valueRange = 0f..255f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = previewColor,
+                            activeTrackColor = previewColor,
+                            inactiveTrackColor = BorderColor
+                        )
+                    )
+                }
+
+                Column {
+                    Text("Azul: ${blue.roundToInt()}", fontSize = 12.sp, color = TextSecondary)
+                    Slider(
+                        value = blue,
+                        onValueChange = { blue = it },
+                        valueRange = 0f..255f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = previewColor,
+                            activeTrackColor = previewColor,
+                            inactiveTrackColor = BorderColor
+                        )
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(colorToHex(previewColor)) }) {
+                Text("Aceptar", color = AccentGreen, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar", color = TextSecondary)
+            }
+        }
+    )
+}
+
 @Composable
 fun AddTeamPlayersDialog(
     currentPlayerName: String,
-    players: List<String>,
+    currentPlayerNumber: String,
+    players: List<TempPlayerInput>,
     onPlayerNameChange: (String) -> Unit,
+    onPlayerNumberChange: (String) -> Unit,
     onAddPlayer: () -> Unit,
     onDismiss: () -> Unit,
     onContinue: () -> Unit
@@ -132,7 +262,12 @@ fun AddTeamPlayersDialog(
         containerColor = SurfaceColor,
         shape = RoundedCornerShape(20.dp),
         title = {
-            Text("Agregar jugadores", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextPrimary)
+            Text(
+                "Agregar jugadores",
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = TextPrimary
+            )
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -140,8 +275,8 @@ fun AddTeamPlayersDialog(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top
                 ) {
                     OutlinedTextField(
                         value = currentPlayerName,
@@ -159,15 +294,41 @@ fun AddTeamPlayersDialog(
                             cursorColor = AccentGreen
                         )
                     )
+
+                    OutlinedTextField(
+                        value = currentPlayerNumber,
+                        onValueChange = { value ->
+                            onPlayerNumberChange(value.filter { it.isDigit() })
+                        },
+                        label = { Text("N°", fontSize = 13.sp) },
+                        modifier = Modifier.width(86.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AccentGreen,
+                            unfocusedBorderColor = BorderColor,
+                            focusedLabelColor = AccentGreen,
+                            unfocusedLabelColor = TextSecondary,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            cursorColor = AccentGreen
+                        )
+                    )
+
                     Box(
                         modifier = Modifier
+                            .padding(top = 4.dp)
                             .size(50.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .background(AccentGreen)
                             .clickable { onAddPlayer() },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("+", fontSize = 24.sp, color = Color.White, fontWeight = FontWeight.Light)
+                        Text(
+                            "+",
+                            fontSize = 24.sp,
+                            color = Color.White,
+                            fontWeight = FontWeight.Light
+                        )
                     }
                 }
 
@@ -183,7 +344,12 @@ fun AddTeamPlayersDialog(
                             .background(AccentGreenLight)
                             .padding(horizontal = 10.dp, vertical = 3.dp)
                     ) {
-                        Text("${players.size}/30", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = AccentGreen)
+                        Text(
+                            "${players.size}/30",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = AccentGreen
+                        )
                     }
                 }
 
@@ -191,7 +357,7 @@ fun AddTeamPlayersDialog(
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(200.dp)
+                            .height(220.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .border(1.dp, BorderColor, RoundedCornerShape(10.dp))
                     ) {
@@ -209,13 +375,38 @@ fun AddTeamPlayersDialog(
                                         .background(AccentGreenLight),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text("${index + 1}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AccentGreen)
+                                    Text(
+                                        "${index + 1}",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = AccentGreen
+                                    )
                                 }
+
                                 Spacer(modifier = Modifier.width(10.dp))
-                                Text(player, fontSize = 14.sp, color = TextPrimary)
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        player.name,
+                                        fontSize = 14.sp,
+                                        color = TextPrimary,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        "Camiseta N° ${player.number}",
+                                        fontSize = 12.sp,
+                                        color = TextSecondary
+                                    )
+                                }
                             }
+
                             if (index < players.lastIndex) {
-                                Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(BorderColor))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(0.5.dp)
+                                        .background(BorderColor)
+                                )
                             }
                         }
                     }
@@ -226,22 +417,25 @@ fun AddTeamPlayersDialog(
             TextButton(
                 onClick = onContinue,
                 enabled = players.size >= 5,
-                colors = ButtonDefaults.textButtonColors(contentColor = AccentGreen, disabledContentColor = TextSecondary)
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = AccentGreen,
+                    disabledContentColor = TextSecondary
+                )
             ) {
                 Text("Continuar", fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary)) {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary)
+            ) {
                 Text("Cancelar")
             }
         }
     )
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// AddTeamEmojiDialog  ← tabs Emoji / Foto
-// ────────────────────────────────────────────────────────────────────────────
 @Composable
 fun AddTeamEmojiDialog(
     emojiValue: String,
@@ -277,7 +471,6 @@ fun AddTeamEmojiDialog(
                 )
 
                 if (selectedTab == 0) {
-                    // ── Tab Emoji ─────────────────────────────────────────────
                     Text("Escribe un emoji para identificar tu equipo.", fontSize = 13.sp, color = TextSecondary)
 
                     if (emojiValue.isNotBlank()) {
@@ -293,10 +486,13 @@ fun AddTeamEmojiDialog(
                         }
                     }
 
-                    MinimalTextField(value = emojiValue, onValueChange = onEmojiChange, label = "Emoji del equipo")
+                    MinimalTextField(
+                        value = emojiValue,
+                        onValueChange = onEmojiChange,
+                        label = "Emoji del equipo"
+                    )
 
                 } else {
-                    // ── Tab Foto ──────────────────────────────────────────────
                     Text("Elige una imagen desde tu galería.", fontSize = 13.sp, color = TextSecondary)
 
                     if (logoUri != null) {
@@ -328,7 +524,12 @@ fun AddTeamEmojiDialog(
                                     .clickable { galleryLauncher.launch("image/*") }
                                     .padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
-                                Text("Cambiar", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                                Text(
+                                    "Cambiar",
+                                    fontSize = 12.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
                     } else {
@@ -347,7 +548,12 @@ fun AddTeamEmojiDialog(
                                 verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text("🖼️", fontSize = 28.sp)
-                                Text("Tocar para elegir foto", fontSize = 13.sp, color = AccentGreen, fontWeight = FontWeight.Medium)
+                                Text(
+                                    "Tocar para elegir foto",
+                                    fontSize = 13.sp,
+                                    color = AccentGreen,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
                     }
@@ -355,16 +561,25 @@ fun AddTeamEmojiDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onContinue, colors = ButtonDefaults.textButtonColors(contentColor = AccentGreen)) {
+            TextButton(
+                onClick = onContinue,
+                colors = ButtonDefaults.textButtonColors(contentColor = AccentGreen)
+            ) {
                 Text("Continuar", fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
             Row {
-                TextButton(onClick = onSkip, colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary)) {
+                TextButton(
+                    onClick = onSkip,
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary)
+                ) {
                     Text("Omitir")
                 }
-                TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary)) {
+                TextButton(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary)
+                ) {
                     Text("Cancelar")
                 }
             }
@@ -372,19 +587,21 @@ fun AddTeamEmojiDialog(
     )
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// AddTeamNameDialog  ← preview con foto o emoji
-// ────────────────────────────────────────────────────────────────────────────
 @Composable
 fun AddTeamNameDialog(
     teamName: String,
     selectedEmoji: String,
     logoUri: String?,
-    players: List<String>,
+    players: List<TempPlayerInput>,
+    shirtColorHex: String,
     onTeamNameChange: (String) -> Unit,
+    onShirtColorChange: (String) -> Unit,
     onDismiss: () -> Unit,
     onCreateTeam: () -> Unit
 ) {
+    var showColorDialog by remember { mutableStateOf(false) }
+    val selectedColor = hexToColor(shirtColorHex)
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = SurfaceColor,
@@ -437,26 +654,99 @@ fun AddTeamNameDialog(
                             fontSize = 15.sp,
                             color = if (teamName.isBlank()) TextSecondary else TextPrimary
                         )
-                        Text("${players.size} jugadores", fontSize = 12.sp, color = AccentGreen, fontWeight = FontWeight.Medium)
+                        Text(
+                            "${players.size} jugadores",
+                            fontSize = 12.sp,
+                            color = AccentGreen,
+                            fontWeight = FontWeight.Medium
+                        )
                     }
                 }
 
-                MinimalTextField(value = teamName, onValueChange = onTeamNameChange, label = "Nombre del equipo")
+                MinimalTextField(
+                    value = teamName,
+                    onValueChange = onTeamNameChange,
+                    label = "Nombre del equipo"
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Color de camiseta",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextSecondary
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFF7F7F5))
+                            .border(1.dp, BorderColor, RoundedCornerShape(12.dp))
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(selectedColor)
+                                .border(1.dp, BorderColor, CircleShape)
+                        )
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = shirtColorHex,
+                                fontSize = 14.sp,
+                                color = TextPrimary,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Toca para cambiar el color",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
+                        }
+
+                        TextButton(onClick = { showColorDialog = true }) {
+                            Text("Elegir", color = AccentGreen, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = onCreateTeam,
                 enabled = teamName.isNotBlank(),
-                colors = ButtonDefaults.textButtonColors(contentColor = AccentGreen, disabledContentColor = TextSecondary)
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = AccentGreen,
+                    disabledContentColor = TextSecondary
+                )
             ) {
                 Text("Crear equipo", fontWeight = FontWeight.SemiBold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary)) {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary)
+            ) {
                 Text("Cancelar")
             }
         }
     )
+
+    if (showColorDialog) {
+        TeamColorPickerDialog(
+            initialColorHex = shirtColorHex,
+            onDismiss = { showColorDialog = false },
+            onConfirm = { newHex ->
+                onShirtColorChange(newHex)
+                showColorDialog = false
+            }
+        )
+    }
 }

@@ -55,16 +55,16 @@ import androidx.navigation.NavHostController
 import com.fmarquez.footboly.dialog.MatchSwapDialog
 import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.navigation.Screen
+import com.fmarquez.footboly.util.hexToColor
+import com.fmarquez.footboly.util.teamColorLight
 import com.fmarquez.footboly.vm.FutbolViewModel
 
-private val BgColor          = Color(0xFFF7F7F5)
-private val SurfaceColor     = Color(0xFFFFFFFF)
-private val AccentGreen      = Color(0xFF1E6B45)
-private val AccentGreenLight = Color(0xFFE8F2EC)
-private val TextPrimary      = Color(0xFF111111)
-private val TextSecondary    = Color(0xFF888888)
-private val BorderColor      = Color(0xFFE0E0DC)
-private val ErrorRed         = Color(0xFFD32F2F)
+private val BgColor       = Color(0xFFF7F7F5)
+private val SurfaceColor  = Color(0xFFFFFFFF)
+private val TextPrimary   = Color(0xFF111111)
+private val TextSecondary = Color(0xFF888888)
+private val BorderColor   = Color(0xFFE0E0DC)
+private val ErrorRed      = Color(0xFFD32F2F)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +75,10 @@ fun ReporteScreen(
     val context = LocalContext.current
     val team = vm.selectedTeam ?: return
     val match = vm.currentMatch ?: return
+
+    // Colores dinámicos del equipo
+    val teamColor      = hexToColor(team.shirtColorHex)
+    val teamColorLight = teamColorLight(teamColor)
 
     var showSwapDialog by remember { mutableStateOf(false) }
     var starterToSwap by remember { mutableStateOf<Player?>(null) }
@@ -157,20 +161,19 @@ fun ReporteScreen(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
-                        .background(AccentGreenLight)
+                        .background(teamColorLight)
                         .padding(horizontal = 10.dp, vertical = 3.dp)
                 ) {
-                    Text("${match.starters.size}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = AccentGreen)
+                    Text("${match.starters.size}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = teamColor)
                 }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // ── Titulares card — weight(1f) para scrollear dentro de la caja ─
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)                // ← altura proporcional, scrolleable
+                    .weight(1f)
                     .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceColor),
@@ -184,6 +187,8 @@ fun ReporteScreen(
                         PlayerRowItem(
                             player = player,
                             role = "Titular",
+                            teamColor = teamColor,
+                            teamColorLight = teamColorLight,
                             showStats = true,
                             showSwap = !match.isFinished && match.substitutes.isNotEmpty(),
                             onStats = {
@@ -221,11 +226,10 @@ fun ReporteScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // ── Reservas card — weight(0.6f) para ocupar menos que titulares ─
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.6f)              // ← altura proporcional, scrolleable
+                    .weight(0.6f)
                     .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceColor),
@@ -241,7 +245,12 @@ fun ReporteScreen(
                 } else {
                     LazyColumn(modifier = Modifier.padding(horizontal = 4.dp)) {
                         items(match.substitutes, key = { it.id }) { player ->
-                            PlayerRowItem(player = player, role = "Reserva")
+                            PlayerRowItem(
+                                player = player,
+                                role = "Reserva",
+                                teamColor = teamColor,
+                                teamColorLight = teamColorLight
+                            )
                             HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
                         }
                     }
@@ -252,7 +261,6 @@ fun ReporteScreen(
         }
     }
 
-    // ── Diálogo: finalizar partido ────────────────────────────────────────────
     if (showStopMatchDialog) {
         AlertDialog(
             onDismissRequest = { showStopMatchDialog = false },
@@ -271,7 +279,6 @@ fun ReporteScreen(
         )
     }
 
-    // ── Diálogo: cambio de jugador ────────────────────────────────────────────
     if (showSwapDialog && starterToSwap != null) {
         MatchSwapDialog(
             starter = starterToSwap!!,
@@ -299,11 +306,16 @@ fun ReporteScreen(
 private fun PlayerRowItem(
     player: Player,
     role: String,
+    teamColor: Color = Color(0xFF1E6B45),
+    teamColorLight: Color = Color(0xFFE8F2EC),
     showStats: Boolean = false,
     showSwap: Boolean = false,
     onStats: () -> Unit = {},
     onSwap: () -> Unit = {}
 ) {
+    val TextPrimary   = Color(0xFF111111)
+    val TextSecondary = Color(0xFF888888)
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -314,14 +326,14 @@ private fun PlayerRowItem(
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .background(if (role == "Titular") AccentGreenLight else Color(0xFFF5F5F5)),
+                .background(if (role == "Titular") teamColorLight else Color(0xFFF5F5F5)),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = player.number.toString(),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (role == "Titular") AccentGreen else TextSecondary
+                color = if (role == "Titular") teamColor else TextSecondary
             )
         }
 
@@ -334,7 +346,7 @@ private fun PlayerRowItem(
 
         if (showStats) {
             IconButton(onClick = onStats, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Default.StackedLineChart, contentDescription = "Estadísticas", tint = AccentGreen, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.StackedLineChart, contentDescription = "Estadísticas", tint = teamColor, modifier = Modifier.size(18.dp))
             }
         }
 

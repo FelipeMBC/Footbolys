@@ -13,6 +13,7 @@ data class MatchEntity(
     val id: Int = 0,
     val teamId: Int,
     val teamNameSnapshot: String,
+    val shirtColorHex: String = "#1E6B45",
     val isStarted: Boolean = false,
     val isFinished: Boolean = false,
     val totalSeconds: Int = 60,

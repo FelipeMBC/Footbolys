@@ -59,15 +59,15 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.navigation.Screen
+import com.fmarquez.footboly.util.hexToColor
+import com.fmarquez.footboly.util.teamColorLight
 import com.fmarquez.footboly.vm.FutbolViewModel
 
-private val BgColor = Color(0xFFF7F7F5)
-private val SurfaceColor = Color(0xFFFFFFFF)
-private val AccentGreen = Color(0xFF1E6B45)
-private val AccentGreenLight = Color(0xFFE8F2EC)
-private val TextPrimary = Color(0xFF111111)
+private val BgColor       = Color(0xFFF7F7F5)
+private val SurfaceColor  = Color(0xFFFFFFFF)
+private val TextPrimary   = Color(0xFF111111)
 private val TextSecondary = Color(0xFF888888)
-private val BorderColor = Color(0xFFE0E0DC)
+private val BorderColor   = Color(0xFFE0E0DC)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,6 +78,10 @@ fun MatchConfigScreen(
     val team = vm.selectedTeam ?: return
     val match = vm.currentMatch ?: return
     val context = LocalContext.current
+
+    // Colores dinámicos del equipo
+    val teamColor      = hexToColor(team.shirtColorHex)
+    val teamColorLight = teamColorLight(teamColor)
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var showDurationDialog by remember { mutableStateOf(false) }
@@ -147,9 +151,7 @@ fun MatchConfigScreen(
                     if (!match.isStarted && !match.isFinished) {
                         IconButton(
                             onClick = {
-                                val totalSeleccionados =
-                                    match.starters.size + match.substitutes.size
-
+                                val totalSeleccionados = match.starters.size + match.substitutes.size
                                 if (totalSeleccionados < 5) {
                                     Toast.makeText(
                                         context,
@@ -158,14 +160,13 @@ fun MatchConfigScreen(
                                     ).show()
                                     return@IconButton
                                 }
-
                                 openDurationDialog()
                             },
                             modifier = Modifier
                                 .padding(end = 8.dp)
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(AccentGreen)
+                                .background(teamColor)
                         ) {
                             Icon(
                                 Icons.Default.PlayArrow,
@@ -188,13 +189,13 @@ fun MatchConfigScreen(
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = SurfaceColor,
-                contentColor = AccentGreen,
+                contentColor = teamColor,
                 indicator = { tabPositions ->
                     Box(
                         modifier = Modifier
                             .tabIndicatorOffset(tabPositions[selectedTab])
                             .height(2.dp)
-                            .background(AccentGreen)
+                            .background(teamColor)
                     )
                 },
                 divider = {
@@ -218,7 +219,7 @@ fun MatchConfigScreen(
                                 text = title,
                                 fontSize = 13.sp,
                                 fontWeight = if (selectedTab == i) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (selectedTab == i) AccentGreen else TextSecondary
+                                color = if (selectedTab == i) teamColor else TextSecondary
                             )
                         }
                     )
@@ -249,7 +250,7 @@ fun MatchConfigScreen(
                 Text(
                     text = "Mínimo requerido para iniciar: 5 jugadores · Seleccionados: $totalSeleccionados",
                     fontSize = 12.sp,
-                    color = if (totalSeleccionados >= 5) AccentGreen else TextSecondary
+                    color = if (totalSeleccionados >= 5) teamColor else TextSecondary
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
@@ -261,6 +262,8 @@ fun MatchConfigScreen(
                         max = team.players.size,
                         blockedPlayers = match.substitutes,
                         enabled = !match.isStarted && !match.isFinished,
+                        accentColor = teamColor,
+                        accentColorLight = teamColorLight,
                         onToggle = { vm.toggleStarter(it) }
                     )
                 } else {
@@ -270,6 +273,8 @@ fun MatchConfigScreen(
                         max = team.players.size,
                         blockedPlayers = match.starters,
                         enabled = !match.isStarted && !match.isFinished,
+                        accentColor = teamColor,
+                        accentColorLight = teamColorLight,
                         onToggle = { vm.toggleSubstitute(it) }
                     )
                 }
@@ -297,7 +302,7 @@ fun MatchConfigScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(AccentGreenLight)
+                            .background(teamColorLight)
                             .padding(vertical = 16.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -305,7 +310,7 @@ fun MatchConfigScreen(
                             text = "${matchDurationMinutes.toInt()} min",
                             fontWeight = FontWeight.Bold,
                             fontSize = 32.sp,
-                            color = AccentGreen
+                            color = teamColor
                         )
                     }
                     Spacer(modifier = Modifier.height(12.dp))
@@ -315,8 +320,8 @@ fun MatchConfigScreen(
                         valueRange = 10f..90f,
                         steps = 79,
                         colors = SliderDefaults.colors(
-                            thumbColor = AccentGreen,
-                            activeTrackColor = AccentGreen,
+                            thumbColor = teamColor,
+                            activeTrackColor = teamColor,
                             inactiveTrackColor = BorderColor
                         )
                     )
@@ -334,7 +339,7 @@ fun MatchConfigScreen(
                         startMatchWithSelectedDuration()
                     }
                 ) {
-                    Text("Iniciar", color = AccentGreen, fontWeight = FontWeight.SemiBold)
+                    Text("Iniciar", color = teamColor, fontWeight = FontWeight.SemiBold)
                 }
             }
         )
@@ -348,22 +353,29 @@ fun SelectablePlayersList(
     max: Int,
     blockedPlayers: List<Player> = emptyList(),
     enabled: Boolean = true,
+    accentColor: Color = Color(0xFF1E6B45),
+    accentColorLight: Color = Color(0xFFE8F2EC),
     onToggle: (Player) -> Unit
 ) {
+    val TextPrimary   = Color(0xFF111111)
+    val TextSecondary = Color(0xFF888888)
+    val BorderColor   = Color(0xFFE0E0DC)
+    val SurfaceColor  = Color(0xFFFFFFFF)
+
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(allPlayers, key = { it.id }) { player ->
             val isSelected = selectedPlayers.any { it.id == player.id }
-            val isBlocked = blockedPlayers.any { it.id == player.id }
+            val isBlocked  = blockedPlayers.any { it.id == player.id }
 
             val cardBg = when {
                 !enabled -> Color(0xFFF0F0EE)
                 isBlocked -> Color(0xFFF5F5F5)
-                isSelected -> AccentGreenLight
+                isSelected -> accentColorLight
                 else -> SurfaceColor
             }
 
             val borderCol = when {
-                isSelected -> AccentGreen.copy(alpha = 0.4f)
+                isSelected -> accentColor.copy(alpha = 0.4f)
                 else -> BorderColor
             }
 
@@ -388,7 +400,7 @@ fun SelectablePlayersList(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(if (isSelected) AccentGreen else BorderColor),
+                            .background(if (isSelected) accentColor else BorderColor),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -419,7 +431,7 @@ fun SelectablePlayersList(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         color = when {
-                            isSelected -> AccentGreen
+                            isSelected -> accentColor
                             else -> TextSecondary
                         }
                     )

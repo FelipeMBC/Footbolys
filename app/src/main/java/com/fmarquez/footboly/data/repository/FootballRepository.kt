@@ -9,6 +9,7 @@ import com.fmarquez.footboly.data.local.entity.TeamEntity
 import com.fmarquez.footboly.data.mapper.toDomain
 import com.fmarquez.footboly.data.mapper.toEntity
 import com.fmarquez.footboly.datos.mockTeams
+import com.fmarquez.footboly.dialog.TempPlayerInput
 import com.fmarquez.footboly.modelos.MatchEvent
 import com.fmarquez.footboly.modelos.MatchRecord
 import com.fmarquez.footboly.modelos.Team
@@ -46,7 +47,9 @@ class FootballRepository(
                 TeamEntity(
                     id = team.id,
                     name = team.name,
-                    logoEmoji = team.logoEmoji
+                    logoEmoji = team.logoEmoji,
+                    logoUri = team.logoUri,
+                    shirtColorHex = team.shirtColorHex
                 )
             )
 
@@ -66,13 +69,20 @@ class FootballRepository(
     suspend fun addCustomTeam(
         teamName: String,
         teamEmoji: String,
-        playerNames: List<String>,
-        logoUri: String? = null       // ← nuevo parámetro
+        players: List<TempPlayerInput>,
+        logoUri: String? = null,
+        shirtColorHex: String = "#1E6B45"
     ): Team? {
         val cleanedTeamName = teamName.trim()
-        val cleanedPlayers = playerNames
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
+
+        val cleanedPlayers = players
+            .mapNotNull { player ->
+                val cleanedName = player.name.trim()
+                val cleanedNumber = player.number
+                if (cleanedName.isBlank() || cleanedNumber <= 0) null
+                else TempPlayerInput(cleanedName, cleanedNumber)
+            }
+            .distinctBy { it.number }
 
         if (cleanedTeamName.isBlank()) return null
         if (cleanedPlayers.size !in 5..30) return null
@@ -81,23 +91,25 @@ class FootballRepository(
         var nextPlayerId = teamDao.getNextPlayerId()
 
         val finalEmoji = if (teamEmoji.isBlank()) "⚽" else teamEmoji.trim()
+        val finalShirtColor = shirtColorHex.ifBlank { "#1E6B45" }
 
         teamDao.insertTeam(
             TeamEntity(
                 id = teamId,
                 name = cleanedTeamName,
                 logoEmoji = finalEmoji,
-                logoUri = logoUri         // ← se guarda en la entidad
+                logoUri = logoUri,
+                shirtColorHex = finalShirtColor
             )
         )
 
         teamDao.insertPlayers(
-            cleanedPlayers.mapIndexed { index, playerName ->
+            cleanedPlayers.map { player ->
                 PlayerEntity(
                     id = nextPlayerId++,
                     teamId = teamId,
-                    name = playerName,
-                    number = index + 1
+                    name = player.name,
+                    number = player.number
                 )
             }
         )
@@ -105,11 +117,14 @@ class FootballRepository(
         return teamDao.getTeamWithPlayers(teamId)?.toDomain()
     }
 
-    suspend fun addPlayer(teamId: Int, name: String) {
+    suspend fun addPlayer(teamId: Int, name: String, number: Int) {
         val trimmed = name.trim()
         if (trimmed.isBlank()) return
+        if (number <= 0) return
 
         val currentPlayers = teamDao.getPlayersByTeam(teamId)
+        if (currentPlayers.any { it.number == number }) return
+
         val nextPlayerId = teamDao.getNextPlayerId()
 
         teamDao.insertPlayer(
@@ -117,23 +132,13 @@ class FootballRepository(
                 id = nextPlayerId,
                 teamId = teamId,
                 name = trimmed,
-                number = currentPlayers.size + 1
+                number = number
             )
         )
     }
 
     suspend fun removePlayer(teamId: Int, playerId: Int) {
         teamDao.deletePlayer(playerId)
-
-        val reordered = teamDao.getPlayersByTeam(teamId)
-            .sortedBy { it.number }
-            .mapIndexed { index, player ->
-                player.copy(number = index + 1)
-            }
-
-        if (reordered.isNotEmpty()) {
-            teamDao.updatePlayers(reordered)
-        }
     }
 
     suspend fun createNewMatch(team: Team): MatchRecord {
@@ -143,6 +148,7 @@ class FootballRepository(
             id = matchId,
             teamId = team.id,
             teamNameSnapshot = team.name,
+            shirtColorHex = team.shirtColorHex,
             isStarted = false,
             isFinished = false,
             totalSeconds = 60,

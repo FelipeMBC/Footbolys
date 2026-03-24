@@ -14,7 +14,8 @@ fun TeamWithPlayers.toDomain(): Team {
         id = team.id,
         name = team.name,
         logoEmoji = team.logoEmoji,
-        logoUri = team.logoUri,           // ← nuevo
+        logoUri = team.logoUri,
+        shirtColorHex = team.shirtColorHex,
         players = players
             .sortedBy { it.number }
             .map { player ->
@@ -70,6 +71,7 @@ fun MatchWithDetails.toDomain(): MatchRecord {
         id = match.id,
         teamId = match.teamId,
         teamName = match.teamNameSnapshot,
+        shirtColorHex = match.shirtColorHex,
         starters = starters,
         substitutes = substitutes,
         statsByPlayerId = mutableMapOf(),
@@ -89,6 +91,7 @@ fun MatchRecord.toEntity(): MatchEntity {
         id = id,
         teamId = teamId,
         teamNameSnapshot = teamName,
+        shirtColorHex = shirtColorHex,
         isStarted = isStarted,
         isFinished = isFinished,
         totalSeconds = totalSeconds,

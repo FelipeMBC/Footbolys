@@ -55,15 +55,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.fmarquez.footboly.modelos.PlayerStatsDraft
+import com.fmarquez.footboly.util.hexToColor
+import com.fmarquez.footboly.util.teamColorLight
 import com.fmarquez.footboly.vm.FutbolViewModel
 
-private val BgColor          = Color(0xFFF7F7F5)
-private val SurfaceColor     = Color(0xFFFFFFFF)
-private val AccentGreen      = Color(0xFF1E6B45)
-private val AccentGreenLight = Color(0xFFE8F2EC)
-private val TextPrimary      = Color(0xFF111111)
-private val TextSecondary    = Color(0xFF888888)
-private val BorderColor      = Color(0xFFE0E0DC)
+private val BgColor       = Color(0xFFF7F7F5)
+private val SurfaceColor  = Color(0xFFFFFFFF)
+private val TextPrimary   = Color(0xFF111111)
+private val TextSecondary = Color(0xFF888888)
+private val BorderColor   = Color(0xFFE0E0DC)
 
 data class SingleStatUi(val label: String, val icon: ImageVector, val initialValue: Int = 0)
 data class DualStatUi(
@@ -84,6 +84,10 @@ fun PlayerStatsScreen(
     val team = vm.selectedTeam ?: return
     val activeMatch = vm.getActiveMatchForStats() ?: return
     val isEditingFinishedMatch = vm.isEditingFinishedMatchMode()
+
+    // Colores dinámicos del equipo
+    val teamColor      = hexToColor(team.shirtColorHex)
+    val teamColorLight = teamColorLight(teamColor)
 
     val singleStats = listOf(
         SingleStatUi("Gol", Icons.Default.SportsSoccer),
@@ -145,7 +149,7 @@ fun PlayerStatsScreen(
                             .padding(end = 8.dp)
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(AccentGreen)
+                            .background(teamColor)
                     ) {
                         Icon(Icons.Default.Save, contentDescription = "Guardar", tint = Color.White, modifier = Modifier.size(18.dp))
                     }
@@ -173,12 +177,11 @@ fun PlayerStatsScreen(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Emoji del equipo en círculo
                     Box(
                         modifier = Modifier
                             .size(56.dp)
                             .clip(CircleShape)
-                            .background(AccentGreenLight),
+                            .background(teamColorLight),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(team.logoEmoji, fontSize = 26.sp)
@@ -197,14 +200,14 @@ fun PlayerStatsScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (isEditingFinishedMatch) Color(0xFFFFF3E0) else AccentGreenLight)
+                                .background(if (isEditingFinishedMatch) Color(0xFFFFF3E0) else teamColorLight)
                                 .padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
                             Text(
                                 text = if (isEditingFinishedMatch) "Edición" else "En curso",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = if (isEditingFinishedMatch) Color(0xFFE65100) else AccentGreen
+                                color = if (isEditingFinishedMatch) Color(0xFFE65100) else teamColor
                             )
                         }
                     }
@@ -228,6 +231,7 @@ fun PlayerStatsScreen(
                     SingleStatCard(
                         stat = stat,
                         value = singleStatValue(currentDraft, stat.label),
+                        accentColor = teamColor,
                         onIncrease = { vm.updatePlayerStatsDraft(increaseSingleStat(vm.getOrCreatePlayerStatsDraft(player.id), stat.label)) },
                         onDecrease = { vm.updatePlayerStatsDraft(decreaseSingleStat(vm.getOrCreatePlayerStatsDraft(player.id), stat.label)) }
                     )
@@ -238,6 +242,8 @@ fun PlayerStatsScreen(
                         stat = stat,
                         favorValue = dualFavorValue(currentDraft, stat.favorLabel),
                         contraValue = dualContraValue(currentDraft, stat.contraLabel),
+                        accentColor = teamColor,
+                        accentColorLight = teamColorLight,
                         onFavorIncrease = { vm.updatePlayerStatsDraft(increaseDualFavorStat(vm.getOrCreatePlayerStatsDraft(player.id), stat.favorLabel)) },
                         onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseDualFavorStat(vm.getOrCreatePlayerStatsDraft(player.id), stat.favorLabel)) },
                         onContraIncrease = { vm.updatePlayerStatsDraft(increaseDualContraStat(vm.getOrCreatePlayerStatsDraft(player.id), stat.contraLabel)) },
@@ -249,7 +255,7 @@ fun PlayerStatsScreen(
     }
 }
 
-// ── Funciones de estado (sin cambios) ────────────────────────────────────────
+// ── Funciones de estado ───────────────────────────────────────────────────────
 fun singleStatValue(draft: PlayerStatsDraft, label: String) = when (label) {
     "Gol" -> draft.gol; "Asistencia" -> draft.asistencia; "Amarilla" -> draft.amarilla
     "Roja" -> draft.roja; "Disparos al Arco" -> draft.disparosAlArco
@@ -320,15 +326,23 @@ fun decreaseDualContraStat(draft: PlayerStatsDraft, label: String) = when (label
     "Tiro Libre Lateral en Contra" -> draft.copy(tiroLibreLateralEnContra = (draft.tiroLibreLateralEnContra - 1).coerceAtLeast(0)); else -> draft
 }
 
-// ── Componentes de tarjetas de estadísticas ───────────────────────────────────
+// ── Tarjetas de estadísticas ──────────────────────────────────────────────────
 @Composable
-fun SingleStatCard(stat: SingleStatUi, value: Int, onIncrease: () -> Unit, onDecrease: () -> Unit) {
+fun SingleStatCard(
+    stat: SingleStatUi,
+    value: Int,
+    accentColor: Color = Color(0xFF1E6B45),
+    onIncrease: () -> Unit,
+    onDecrease: () -> Unit
+) {
+    val accentColorLight = com.fmarquez.footboly.util.teamColorLight(accentColor)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
+            .border(1.dp, Color(0xFFE0E0DC), RoundedCornerShape(14.dp)),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -336,19 +350,19 @@ fun SingleStatCard(stat: SingleStatUi, value: Int, onIncrease: () -> Unit, onDec
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
-                modifier = Modifier.size(36.dp).clip(CircleShape).background(AccentGreenLight),
+                modifier = Modifier.size(36.dp).clip(CircleShape).background(accentColorLight),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(stat.icon, contentDescription = stat.label, tint = AccentGreen, modifier = Modifier.size(18.dp))
+                Icon(stat.icon, contentDescription = stat.label, tint = accentColor, modifier = Modifier.size(18.dp))
             }
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            Text(stat.label, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = TextPrimary, textAlign = TextAlign.Center)
+            Text(stat.label, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color(0xFF111111), textAlign = TextAlign.Center)
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            Text(value.toString(), fontWeight = FontWeight.Bold, fontSize = 28.sp, color = TextPrimary)
+            Text(value.toString(), fontWeight = FontWeight.Bold, fontSize = 28.sp, color = Color(0xFF111111))
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -357,8 +371,8 @@ fun SingleStatCard(stat: SingleStatUi, value: Int, onIncrease: () -> Unit, onDec
                     onClick = onIncrease,
                     modifier = Modifier.size(width = 48.dp, height = 36.dp),
                     shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, AccentGreen),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentGreen),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, accentColor),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = accentColor),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                 ) { Text("+", fontWeight = FontWeight.Bold) }
 
@@ -368,8 +382,8 @@ fun SingleStatCard(stat: SingleStatUi, value: Int, onIncrease: () -> Unit, onDec
                     onClick = onDecrease,
                     modifier = Modifier.size(width = 48.dp, height = 36.dp),
                     shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE0E0DC)),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF888888)),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                 ) { Text("−", fontWeight = FontWeight.Bold) }
             }
@@ -380,16 +394,25 @@ fun SingleStatCard(stat: SingleStatUi, value: Int, onIncrease: () -> Unit, onDec
 @Composable
 fun DualStatCard(
     stat: DualStatUi,
-    favorValue: Int, contraValue: Int,
-    onFavorIncrease: () -> Unit, onFavorDecrease: () -> Unit,
-    onContraIncrease: () -> Unit, onContraDecrease: () -> Unit
+    favorValue: Int,
+    contraValue: Int,
+    accentColor: Color = Color(0xFF1E6B45),
+    accentColorLight: Color = Color(0xFFE8F2EC),
+    onFavorIncrease: () -> Unit,
+    onFavorDecrease: () -> Unit,
+    onContraIncrease: () -> Unit,
+    onContraDecrease: () -> Unit
 ) {
+    val ErrorRed    = Color(0xFFD32F2F)
+    val BorderColor = Color(0xFFE0E0DC)
+    val TextPrimary = Color(0xFF111111)
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
@@ -403,7 +426,7 @@ fun DualStatCard(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // A favor
                 Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("A favor", fontSize = 11.sp, color = AccentGreen, fontWeight = FontWeight.Medium)
+                    Text("A favor", fontSize = 11.sp, color = accentColor, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(favorValue.toString(), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
                     Spacer(modifier = Modifier.height(6.dp))
@@ -412,8 +435,8 @@ fun DualStatCard(
                             onClick = onFavorIncrease,
                             modifier = Modifier.size(width = 38.dp, height = 32.dp),
                             shape = RoundedCornerShape(7.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, AccentGreen),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentGreen),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, accentColor),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = accentColor),
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                         ) { Text("+", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                         Spacer(modifier = Modifier.width(4.dp))
@@ -422,18 +445,17 @@ fun DualStatCard(
                             modifier = Modifier.size(width = 38.dp, height = 32.dp),
                             shape = RoundedCornerShape(7.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF888888)),
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                         ) { Text("−", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
 
-                // Divisor
                 Box(modifier = Modifier.width(1.dp).height(80.dp).background(BorderColor).align(Alignment.CenterVertically))
 
                 // En contra
                 Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("En contra", fontSize = 11.sp, color = Color(0xFFD32F2F), fontWeight = FontWeight.Medium)
+                    Text("En contra", fontSize = 11.sp, color = ErrorRed, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(contraValue.toString(), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
                     Spacer(modifier = Modifier.height(6.dp))
@@ -442,8 +464,8 @@ fun DualStatCard(
                             onClick = onContraIncrease,
                             modifier = Modifier.size(width = 38.dp, height = 32.dp),
                             shape = RoundedCornerShape(7.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD32F2F)),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFD32F2F)),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                         ) { Text("+", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                         Spacer(modifier = Modifier.width(4.dp))
@@ -452,7 +474,7 @@ fun DualStatCard(
                             modifier = Modifier.size(width = 38.dp, height = 32.dp),
                             shape = RoundedCornerShape(7.dp),
                             border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF888888)),
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                         ) { Text("−", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                     }

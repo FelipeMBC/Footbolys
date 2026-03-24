@@ -9,5 +9,6 @@ data class TeamEntity(
     val id: Int = 0,
     val name: String,
     val logoEmoji: String,
-    val logoUri: String? = null   // ← nuevo campo
+    val logoUri: String? = null,
+    val shirtColorHex: String = "#1E6B45"
 )

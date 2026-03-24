@@ -75,16 +75,16 @@ import androidx.navigation.NavHostController
 import com.fmarquez.footboly.modelos.MatchRecord
 import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.navigation.Screen
+import com.fmarquez.footboly.util.hexToColor
+import com.fmarquez.footboly.util.teamColorLight
 import com.fmarquez.footboly.vm.FutbolViewModel
 
-private val BgColor          = Color(0xFFF7F7F5)
-private val SurfaceColor     = Color(0xFFFFFFFF)
-private val AccentGreen      = Color(0xFF1E6B45)
-private val AccentGreenLight = Color(0xFFE8F2EC)
-private val TextPrimary      = Color(0xFF111111)
-private val TextSecondary    = Color(0xFF888888)
-private val BorderColor      = Color(0xFFE0E0DC)
-private val ErrorRed         = Color(0xFFD32F2F)
+private val BgColor       = Color(0xFFF7F7F5)
+private val SurfaceColor  = Color(0xFFFFFFFF)
+private val TextPrimary   = Color(0xFF111111)
+private val TextSecondary = Color(0xFF888888)
+private val BorderColor   = Color(0xFFE0E0DC)
+private val ErrorRed      = Color(0xFFD32F2F)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -143,7 +143,6 @@ fun MatchTimelineScreen(
         }
     }
 
-    // ── Diálogos ──────────────────────────────────────────────────────────────
     if (showAllDetailsDialog && selectedMatch != null) {
         AlertDialog(
             onDismissRequest = { showAllDetailsDialog = false },
@@ -166,8 +165,9 @@ fun MatchTimelineScreen(
                 }
             },
             confirmButton = {
+                val matchColor = hexToColor(selectedMatch.shirtColorHex)
                 TextButton(onClick = { showAllDetailsDialog = false }) {
-                    Text("Cerrar", color = AccentGreen)
+                    Text("Cerrar", color = matchColor)
                 }
             }
         )
@@ -190,6 +190,7 @@ fun MatchTimelineScreen(
     }
 
     if (vm.shouldShowEditResultDialog) {
+        val matchColor = selectedMatch?.let { hexToColor(it.shirtColorHex) } ?: Color(0xFF1E6B45)
         AlertDialog(
             onDismissRequest = { vm.dismissEditResultDialog() },
             containerColor = SurfaceColor,
@@ -202,7 +203,7 @@ fun MatchTimelineScreen(
                 }
             },
             confirmButton = {
-                TextButton(onClick = { vm.dismissEditResultDialog() }) { Text("Aceptar", color = AccentGreen) }
+                TextButton(onClick = { vm.dismissEditResultDialog() }) { Text("Aceptar", color = matchColor) }
             }
         )
     }
@@ -227,6 +228,10 @@ fun MatchHistoryList(
     } else {
         LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(matches, key = { it.id }) { match ->
+                // Color dinámico por partido
+                val matchColor      = hexToColor(match.shirtColorHex)
+                val matchColorLight = teamColorLight(matchColor)
+
                 var expanded by remember { mutableStateOf(false) }
 
                 Card(
@@ -242,12 +247,11 @@ fun MatchHistoryList(
                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Icono lateral
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(AccentGreenLight),
+                                .background(matchColorLight),
                             contentAlignment = Alignment.Center
                         ) {
                             Text("⚽", fontSize = 22.sp)
@@ -271,6 +275,16 @@ fun MatchHistoryList(
                             Spacer(modifier = Modifier.height(2.dp))
                             Text("${match.totalSeconds / 60} min · ${match.events.size} eventos", fontSize = 12.sp, color = TextSecondary)
                         }
+
+                        // Punto de color del equipo
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(matchColor)
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
 
                         Box {
                             IconButton(onClick = { expanded = true }) {
@@ -307,24 +321,27 @@ fun MatchDetailContent(
     onEditPlayerStats: (Player) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val starters = match.starters.sortedBy { it.number }
+    val starters    = match.starters.sortedBy { it.number }
     val substitutes = match.substitutes.sortedBy { it.number }
 
+    // Colores dinámicos del partido
+    val teamColor      = hexToColor(match.shirtColorHex)
+    val teamColorLight = teamColorLight(teamColor)
+
     LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // ── Resumen del partido ───────────────────────────────────────────────
         item {
             Card(
                 modifier = Modifier.fillMaxWidth().border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
                 shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = AccentGreenLight),
+                colors = CardDefaults.cardColors(containerColor = teamColorLight),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text("Partido terminado", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = AccentGreen)
+                    Text("Partido terminado", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = teamColor)
                     Spacer(modifier = Modifier.height(8.dp))
-                    SummaryRow("Equipo", match.teamName)
-                    SummaryRow("Duración", "${match.totalSeconds / 60} min")
-                    SummaryRow("Eventos", "${match.events.size}")
+                    SummaryRow("Equipo", match.teamName, teamColor)
+                    SummaryRow("Duración", "${match.totalSeconds / 60} min", teamColor)
+                    SummaryRow("Eventos", "${match.events.size}", teamColor)
                 }
             }
         }
@@ -348,29 +365,15 @@ fun MatchDetailContent(
         }
 
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Titulares",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    color = TextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Titulares", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary, modifier = Modifier.weight(1f))
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
-                        .background(AccentGreenLight)
+                        .background(teamColorLight)
                         .padding(horizontal = 10.dp, vertical = 3.dp)
                 ) {
-                    Text(
-                        "${starters.size}",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = AccentGreen
-                    )
+                    Text("${starters.size}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = teamColor)
                 }
             }
         }
@@ -382,39 +385,25 @@ fun MatchDetailContent(
                 SavedMatchPlayerRow(
                     player = player,
                     role = "Titular",
+                    teamColor = teamColor,
+                    teamColorLight = teamColorLight,
                     onEditPlayerStats = { onEditPlayerStats(player) }
                 )
             }
         }
 
-        item {
-            Spacer(modifier = Modifier.height(8.dp))
-        }
+        item { Spacer(modifier = Modifier.height(8.dp)) }
 
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Reservas",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    color = TextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Reservas", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary, modifier = Modifier.weight(1f))
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color(0xFFF5F5F5))
                         .padding(horizontal = 10.dp, vertical = 3.dp)
                 ) {
-                    Text(
-                        "${substitutes.size}",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextSecondary
-                    )
+                    Text("${substitutes.size}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
                 }
             }
         }
@@ -426,6 +415,8 @@ fun MatchDetailContent(
                 SavedMatchPlayerRow(
                     player = player,
                     role = "Reserva",
+                    teamColor = teamColor,
+                    teamColorLight = teamColorLight,
                     onEditPlayerStats = { onEditPlayerStats(player) }
                 )
             }
@@ -443,7 +434,9 @@ fun MatchDetailContent(
                     title = formatEventTitle(event.type, event.detail),
                     timeLabel = event.timestampLabel,
                     playerName = event.playerName,
-                    detail = event.detail
+                    detail = event.detail,
+                    accentColor = teamColor,
+                    accentColorLight = teamColorLight
                 )
             }
         }
@@ -456,6 +449,8 @@ fun MatchDetailContent(
 private fun SavedMatchPlayerRow(
     player: Player,
     role: String,
+    teamColor: Color,
+    teamColorLight: Color,
     onEditPlayerStats: () -> Unit
 ) {
     Card(
@@ -476,33 +471,22 @@ private fun SavedMatchPlayerRow(
                 modifier = Modifier
                     .size(36.dp)
                     .clip(CircleShape)
-                    .background(
-                        if (role == "Titular") AccentGreenLight else Color(0xFFF5F5F5)
-                    ),
+                    .background(if (role == "Titular") teamColorLight else Color(0xFFF5F5F5)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = player.number.toString(),
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (role == "Titular") AccentGreen else TextSecondary
+                    color = if (role == "Titular") teamColor else TextSecondary
                 )
             }
 
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    player.name,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp,
-                    color = TextPrimary
-                )
-                Text(
-                    "$role · N° ${player.number}",
-                    fontSize = 12.sp,
-                    color = TextSecondary
-                )
+                Text(player.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
+                Text("$role · N° ${player.number}", fontSize = 12.sp, color = TextSecondary)
             }
 
             OutlinedButton(
@@ -520,13 +504,13 @@ private fun SavedMatchPlayerRow(
 }
 
 @Composable
-private fun SummaryRow(label: String, value: String) {
+private fun SummaryRow(label: String, value: String, teamColor: Color) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, fontSize = 13.sp, color = AccentGreen.copy(alpha = 0.7f))
-        Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AccentGreen)
+        Text(label, fontSize = 13.sp, color = teamColor.copy(alpha = 0.7f))
+        Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = teamColor)
     }
 }
 
@@ -535,7 +519,9 @@ fun MatchEventReportCard(
     title: String,
     timeLabel: String,
     playerName: String,
-    detail: String = ""
+    detail: String = "",
+    accentColor: Color = Color(0xFF1E6B45),
+    accentColorLight: Color = Color(0xFFE8F2EC)
 ) {
     val isSwap = title == "Cambio" || detail.startsWith("Entra ")
 
@@ -549,18 +535,17 @@ fun MatchEventReportCard(
             modifier = Modifier.fillMaxWidth().padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icono del evento
             Box(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(AccentGreenLight),
+                    .background(accentColorLight),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = eventIcon(title, detail),
                     contentDescription = title,
-                    tint = AccentGreen,
+                    tint = accentColor,
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -585,7 +570,6 @@ fun MatchEventReportCard(
                 }
             }
 
-            // Badge de tiempo
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))

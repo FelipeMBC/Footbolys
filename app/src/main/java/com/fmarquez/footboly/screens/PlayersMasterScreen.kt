@@ -49,7 +49,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -59,16 +58,16 @@ import coil.request.ImageRequest
 import com.fmarquez.footboly.dialog.AddPlayerDialog
 import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.navigation.Screen
+import com.fmarquez.footboly.util.hexToColor
+import com.fmarquez.footboly.util.teamColorLight
 import com.fmarquez.footboly.vm.FutbolViewModel
 
-private val BgColor          = Color(0xFFF7F7F5)
-private val SurfaceColor     = Color(0xFFFFFFFF)
-private val AccentGreen      = Color(0xFF1E6B45)
-private val AccentGreenLight = Color(0xFFE8F2EC)
-private val TextPrimary      = Color(0xFF111111)
-private val TextSecondary    = Color(0xFF888888)
-private val BorderColor      = Color(0xFFE0E0DC)
-private val ErrorRed         = Color(0xFFD32F2F)
+private val BgColor      = Color(0xFFF7F7F5)
+private val SurfaceColor = Color(0xFFFFFFFF)
+private val TextPrimary  = Color(0xFF111111)
+private val TextSecondary = Color(0xFF888888)
+private val BorderColor  = Color(0xFFE0E0DC)
+private val ErrorRed     = Color(0xFFD32F2F)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,8 +79,13 @@ fun PlayersMasterScreen(
     val currentMatch = vm.currentMatch
     val context = LocalContext.current
 
+    // Colores dinámicos del equipo
+    val teamColor      = hexToColor(team.shirtColorHex)
+    val teamColorLight = teamColorLight(teamColor)
+
     var showAddDialog by remember { mutableStateOf(false) }
     var playerName by remember { mutableStateOf("") }
+    var playerNumber by remember { mutableStateOf("") }
     var playerToDelete by remember { mutableStateOf<Player?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showMinPlayersWarning by remember { mutableStateOf(false) }
@@ -138,7 +142,6 @@ fun PlayersMasterScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            // ── Contador de jugadores ─────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -153,21 +156,20 @@ fun PlayersMasterScreen(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
-                        .background(AccentGreenLight)
+                        .background(teamColorLight)
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = "${team.players.size}/30",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = AccentGreen
+                        color = teamColor
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // ── Botones primarios ─────────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -180,7 +182,7 @@ fun PlayersMasterScreen(
                     modifier = Modifier.weight(1f).height(48.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = AccentGreen,
+                        containerColor = teamColor,
                         contentColor = Color.White
                     ),
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
@@ -212,7 +214,6 @@ fun PlayersMasterScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // ── Botones secundarios ───────────────────────────────────────────
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -247,7 +248,6 @@ fun PlayersMasterScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ── Lista de jugadores ────────────────────────────────────────────
             Card(
                 modifier = Modifier.fillMaxSize(),
                 shape = RoundedCornerShape(16.dp),
@@ -272,7 +272,7 @@ fun PlayersMasterScreen(
                             .fillMaxSize()
                             .padding(horizontal = 4.dp)
                     ) {
-                        items(team.players, key = { it.id }) { player ->
+                        items(team.players.sortedBy { it.number }, key = { it.id }) { player ->
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -283,14 +283,14 @@ fun PlayersMasterScreen(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(CircleShape)
-                                        .background(AccentGreenLight),
+                                        .background(teamColorLight),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = player.number.toString(),
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = AccentGreen
+                                        color = teamColor
                                     )
                                 }
 
@@ -298,7 +298,7 @@ fun PlayersMasterScreen(
 
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(player.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
-                                    Text("N° ${player.number}", fontSize = 12.sp, color = TextSecondary)
+                                    Text("Camiseta N° ${player.number}", fontSize = 12.sp, color = TextSecondary)
                                 }
 
                                 IconButton(
@@ -324,25 +324,42 @@ fun PlayersMasterScreen(
         }
     }
 
-    // ── Diálogos (lógica sin cambios) ─────────────────────────────────────────
     if (showAddDialog) {
         AddPlayerDialog(
             playerName = playerName,
+            playerNumber = playerNumber,
             onNameChange = { playerName = it },
+            onNumberChange = { playerNumber = it },
             onDismiss = {
                 showAddDialog = false
+                playerName = ""
+                playerNumber = ""
                 if (team.players.size < 5) showMinPlayersWarning = true
             },
             onConfirm = {
-                if (team.players.size >= 30) {
-                    Toast.makeText(context, "Máximo 30 jugadores por equipo", Toast.LENGTH_SHORT).show()
-                    showAddDialog = false
-                    return@AddPlayerDialog
+                val parsedNumber = playerNumber.toIntOrNull()
+                when {
+                    team.players.size >= 30 -> {
+                        Toast.makeText(context, "Máximo 30 jugadores por equipo", Toast.LENGTH_SHORT).show()
+                        showAddDialog = false
+                    }
+                    playerName.isBlank() -> {
+                        Toast.makeText(context, "Ingresa el nombre del jugador", Toast.LENGTH_SHORT).show()
+                    }
+                    parsedNumber == null || parsedNumber <= 0 -> {
+                        Toast.makeText(context, "Ingresa un número de camiseta válido", Toast.LENGTH_SHORT).show()
+                    }
+                    team.players.any { it.number == parsedNumber } -> {
+                        Toast.makeText(context, "Ese número de camiseta ya está en uso", Toast.LENGTH_SHORT).show()
+                    }
+                    else -> {
+                        vm.addPlayer(playerName, parsedNumber)
+                        playerName = ""
+                        playerNumber = ""
+                        showAddDialog = false
+                        showMinPlayersWarning = team.players.size < 5
+                    }
                 }
-                vm.addPlayer(playerName)
-                playerName = ""
-                showAddDialog = false
-                showMinPlayersWarning = team.players.size < 5
             }
         )
     }
@@ -362,7 +379,10 @@ fun PlayersMasterScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        playerToDelete?.let { vm.removePlayer(it); Toast.makeText(context, "Jugador eliminado", Toast.LENGTH_SHORT).show() }
+                        playerToDelete?.let {
+                            vm.removePlayer(it)
+                            Toast.makeText(context, "Jugador eliminado", Toast.LENGTH_SHORT).show()
+                        }
                         showDeleteDialog = false
                         playerToDelete = null
                         if ((vm.selectedTeam?.players?.size ?: 0) < 5) showMinPlayersWarning = true
@@ -383,7 +403,7 @@ fun PlayersMasterScreen(
             text = { Text("Hay menos de 5 jugadores. Agrega más para poder iniciar partidos.", color = TextSecondary) },
             confirmButton = {
                 TextButton(onClick = { showMinPlayersWarning = false; showAddDialog = true }) {
-                    Text("Agregar jugador", color = AccentGreen, fontWeight = FontWeight.SemiBold)
+                    Text("Agregar jugador", color = teamColor, fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {

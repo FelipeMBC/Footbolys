@@ -1,9 +1,9 @@
 package com.fmarquez.footboly.data.local.db
 
 import android.content.Context
-import androidx.room.RoomDatabase
 import androidx.room.Database
 import androidx.room.Room
+import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.fmarquez.footboly.data.local.dao.MatchDao
@@ -20,6 +20,18 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE teams ADD COLUMN shirtColorHex TEXT NOT NULL DEFAULT '#1E6B45'")
+    }
+}
+
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE matches ADD COLUMN shirtColorHex TEXT NOT NULL DEFAULT '#1E6B45'")
+    }
+}
+
 @Database(
     entities = [
         TeamEntity::class,
@@ -28,7 +40,7 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         MatchPlayerEntity::class,
         MatchEventEntity::class
     ],
-    version = 2,
+    version = 4,
     exportSchema = false
 )
 abstract class FootbolyDatabase : RoomDatabase() {
@@ -46,7 +58,7 @@ abstract class FootbolyDatabase : RoomDatabase() {
                     FootbolyDatabase::class.java,
                     "footboly_db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                 INSTANCE = instance
                 instance

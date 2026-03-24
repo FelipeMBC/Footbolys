@@ -4,6 +4,7 @@ data class MatchRecord(
     val id: Int,
     val teamId: Int,
     val teamName: String,
+    val shirtColorHex: String = "#1E6B45",
     val starters: MutableList<Player>,
     val substitutes: MutableList<Player>,
     val statsByPlayerId: MutableMap<Int, PlayerStats> = mutableMapOf(),

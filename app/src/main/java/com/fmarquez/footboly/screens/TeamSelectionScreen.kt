@@ -53,13 +53,15 @@ import coil.request.ImageRequest
 import com.fmarquez.footboly.dialog.AddTeamEmojiDialog
 import com.fmarquez.footboly.dialog.AddTeamNameDialog
 import com.fmarquez.footboly.dialog.AddTeamPlayersDialog
+import com.fmarquez.footboly.dialog.TempPlayerInput
 import com.fmarquez.footboly.navigation.Screen
+import com.fmarquez.footboly.util.hexToColor
+import com.fmarquez.footboly.util.teamColorLight
 import com.fmarquez.footboly.vm.FutbolViewModel
 
 private val BackgroundColor  = Color(0xFFF7F7F5)
 private val SurfaceColor     = Color(0xFFFFFFFF)
 private val AccentGreen      = Color(0xFF1E6B45)
-private val AccentGreenLight = Color(0xFFE8F2EC)
 private val TextPrimary      = Color(0xFF111111)
 private val TextSecondary    = Color(0xFF888888)
 private val BorderColor      = Color(0xFFE0E0DC)
@@ -73,26 +75,34 @@ fun TeamSelectionScreen(
     var expanded by remember { mutableStateOf(false) }
     val selectedTeam = vm.selectedTeam
 
+    // Color dinámico del equipo seleccionado
+    val teamColor      = selectedTeam?.let { hexToColor(it.shirtColorHex) } ?: AccentGreen
+    val teamColorLight = teamColorLight(teamColor)
+
     var showPlayersDialog by remember { mutableStateOf(false) }
-    var showEmojiDialog   by remember { mutableStateOf(false) }
-    var showNameDialog    by remember { mutableStateOf(false) }
+    var showEmojiDialog by remember { mutableStateOf(false) }
+    var showNameDialog by remember { mutableStateOf(false) }
 
     var currentPlayerName by remember { mutableStateOf("") }
-    val tempPlayers = remember { mutableStateListOf<String>() }
+    var currentPlayerNumber by remember { mutableStateOf("") }
+    val tempPlayers = remember { mutableStateListOf<TempPlayerInput>() }
 
-    var tempEmoji    by remember { mutableStateOf("⚽") }
+    var tempEmoji by remember { mutableStateOf("⚽") }
     var tempTeamName by remember { mutableStateOf("") }
-    var tempLogoUri  by remember { mutableStateOf<String?>(null) }  // ← nuevo
+    var tempLogoUri by remember { mutableStateOf<String?>(null) }
+    var tempShirtColorHex by remember { mutableStateOf("#1E6B45") }
 
     fun resetWizard() {
         currentPlayerName = ""
+        currentPlayerNumber = ""
         tempPlayers.clear()
         tempEmoji = "⚽"
         tempTeamName = ""
-        tempLogoUri = null               // ← reset
+        tempLogoUri = null
+        tempShirtColorHex = "#1E6B45"
         showPlayersDialog = false
-        showEmojiDialog   = false
-        showNameDialog    = false
+        showEmojiDialog = false
+        showNameDialog = false
     }
 
     Scaffold(
@@ -109,7 +119,10 @@ fun TeamSelectionScreen(
                 },
                 actions = {
                     IconButton(
-                        onClick = { resetWizard(); showPlayersDialog = true },
+                        onClick = {
+                            resetWizard()
+                            showPlayersDialog = true
+                        },
                         modifier = Modifier
                             .padding(end = 8.dp)
                             .size(36.dp)
@@ -140,7 +153,10 @@ fun TeamSelectionScreen(
         ) {
             Spacer(modifier = Modifier.height(32.dp))
 
-            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.Start
+            ) {
                 Text(
                     text = "Selecciona",
                     style = MaterialTheme.typography.headlineMedium,
@@ -159,11 +175,12 @@ fun TeamSelectionScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // ── Dropdown ─────────────────────────────────────────────────────
             Box(modifier = Modifier.fillMaxWidth()) {
                 OutlinedButton(
                     onClick = { expanded = true },
-                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = SurfaceColor,
@@ -171,18 +188,25 @@ fun TeamSelectionScreen(
                     ),
                     border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor)
                 ) {
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        // Miniatura de foto si existe
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         if (selectedTeam?.logoUri != null) {
                             AsyncImage(
                                 model = ImageRequest.Builder(LocalContext.current)
-                                    .data(selectedTeam.logoUri).crossfade(true).build(),
+                                    .data(selectedTeam.logoUri)
+                                    .crossfade(true)
+                                    .build(),
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
-                                modifier = Modifier.size(24.dp).clip(CircleShape)
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                         }
+
                         Text(
                             text = selectedTeam?.let {
                                 if (it.logoUri != null) it.name else "${it.logoEmoji}  ${it.name}"
@@ -190,6 +214,7 @@ fun TeamSelectionScreen(
                             fontSize = 15.sp,
                             fontWeight = if (selectedTeam != null) FontWeight.Medium else FontWeight.Normal
                         )
+
                         Spacer(modifier = Modifier.weight(1f))
                         Text(text = "▾", color = TextSecondary, fontSize = 14.sp)
                     }
@@ -198,7 +223,9 @@ fun TeamSelectionScreen(
                 DropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false },
-                    modifier = Modifier.fillMaxWidth(0.9f).background(SurfaceColor)
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .background(SurfaceColor)
                 ) {
                     vm.teams.forEach { team ->
                         DropdownMenuItem(
@@ -207,10 +234,14 @@ fun TeamSelectionScreen(
                                     if (team.logoUri != null) {
                                         AsyncImage(
                                             model = ImageRequest.Builder(LocalContext.current)
-                                                .data(team.logoUri).crossfade(true).build(),
+                                                .data(team.logoUri)
+                                                .crossfade(true)
+                                                .build(),
                                             contentDescription = null,
                                             contentScale = ContentScale.Crop,
-                                            modifier = Modifier.size(24.dp).clip(CircleShape)
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clip(CircleShape)
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(team.name, fontSize = 15.sp, color = TextPrimary)
@@ -219,7 +250,10 @@ fun TeamSelectionScreen(
                                     }
                                 }
                             },
-                            onClick = { vm.selectTeam(team); expanded = false }
+                            onClick = {
+                                vm.selectTeam(team)
+                                expanded = false
+                            }
                         )
                     }
                 }
@@ -227,23 +261,25 @@ fun TeamSelectionScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // ── Card del equipo seleccionado ──────────────────────────────────
             selectedTeam?.let { team ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = AccentGreenLight),
+                    colors = CardDefaults.cardColors(containerColor = teamColorLight),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp, horizontal = 24.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 36.dp, horizontal = 24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        // Foto o emoji
                         if (team.logoUri != null) {
                             AsyncImage(
                                 model = ImageRequest.Builder(LocalContext.current)
-                                    .data(team.logoUri).crossfade(true).build(),
+                                    .data(team.logoUri)
+                                    .crossfade(true)
+                                    .build(),
                                 contentDescription = "Logo del equipo",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
@@ -260,7 +296,11 @@ fun TeamSelectionScreen(
                                     .border(1.dp, BorderColor, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(text = team.logoEmoji, fontSize = 42.sp, textAlign = TextAlign.Center)
+                                Text(
+                                    text = team.logoEmoji,
+                                    fontSize = 42.sp,
+                                    textAlign = TextAlign.Center
+                                )
                             }
                         }
 
@@ -280,7 +320,7 @@ fun TeamSelectionScreen(
                         Text(
                             text = "Equipo seleccionado",
                             fontSize = 13.sp,
-                            color = AccentGreen,
+                            color = teamColor,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -292,34 +332,51 @@ fun TeamSelectionScreen(
             Button(
                 onClick = { navHostController.navigate(Screen.PLAYERS_MASTER.route) },
                 enabled = selectedTeam != null,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = AccentGreen,
+                    containerColor = teamColor,
                     contentColor = Color.White,
                     disabledContainerColor = BorderColor,
                     disabledContentColor = TextSecondary
                 ),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
             ) {
-                Text(text = "Continuar", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp)
+                Text(
+                    text = "Continuar",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.3.sp
+                )
             }
 
             Spacer(modifier = Modifier.height(28.dp))
         }
     }
 
-    // ── Diálogos ─────────────────────────────────────────────────────────────
     if (showPlayersDialog) {
         AddTeamPlayersDialog(
             currentPlayerName = currentPlayerName,
+            currentPlayerNumber = currentPlayerNumber,
             players = tempPlayers,
             onPlayerNameChange = { currentPlayerName = it },
+            onPlayerNumberChange = { currentPlayerNumber = it },
             onAddPlayer = {
-                val trimmed = currentPlayerName.trim()
-                if (trimmed.isNotBlank() && tempPlayers.size < 30) {
-                    tempPlayers.add(trimmed)
+                val trimmedName = currentPlayerName.trim()
+                val parsedNumber = currentPlayerNumber.toIntOrNull()
+                val numberAlreadyUsed = parsedNumber != null && tempPlayers.any { it.number == parsedNumber }
+                if (
+                    trimmedName.isNotBlank() &&
+                    parsedNumber != null &&
+                    parsedNumber > 0 &&
+                    !numberAlreadyUsed &&
+                    tempPlayers.size < 30
+                ) {
+                    tempPlayers.add(TempPlayerInput(name = trimmedName, number = parsedNumber))
                     currentPlayerName = ""
+                    currentPlayerNumber = ""
                     if (tempPlayers.size == 30) {
                         showPlayersDialog = false
                         showEmojiDialog = true
@@ -327,7 +384,10 @@ fun TeamSelectionScreen(
                 }
             },
             onDismiss = { resetWizard() },
-            onContinue = { showPlayersDialog = false; showEmojiDialog = true }
+            onContinue = {
+                showPlayersDialog = false
+                showEmojiDialog = true
+            }
         )
     }
 
@@ -335,8 +395,8 @@ fun TeamSelectionScreen(
         AddTeamEmojiDialog(
             emojiValue = tempEmoji,
             onEmojiChange = { tempEmoji = it },
-            logoUri = tempLogoUri,                   // ← nuevo
-            onLogoUriChange = { tempLogoUri = it },  // ← nuevo
+            logoUri = tempLogoUri,
+            onLogoUriChange = { tempLogoUri = it },
             onDismiss = { resetWizard() },
             onSkip = {
                 tempEmoji = "⚽"
@@ -356,16 +416,19 @@ fun TeamSelectionScreen(
         AddTeamNameDialog(
             teamName = tempTeamName,
             selectedEmoji = tempEmoji,
-            logoUri = tempLogoUri,                   // ← nuevo
+            logoUri = tempLogoUri,
             players = tempPlayers,
+            shirtColorHex = tempShirtColorHex,
             onTeamNameChange = { tempTeamName = it },
+            onShirtColorChange = { tempShirtColorHex = it },
             onDismiss = { resetWizard() },
             onCreateTeam = {
                 vm.addCustomTeam(
                     teamName = tempTeamName,
                     teamEmoji = tempEmoji,
-                    playerNames = tempPlayers.toList(),
-                    logoUri = tempLogoUri             // ← nuevo
+                    players = tempPlayers.toList(),
+                    logoUri = tempLogoUri,
+                    shirtColorHex = tempShirtColorHex
                 )
                 resetWizard()
             }
