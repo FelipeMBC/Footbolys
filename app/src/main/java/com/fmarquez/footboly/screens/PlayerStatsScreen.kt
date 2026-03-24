@@ -368,17 +368,6 @@ fun SingleStatCard(
 
             Row(horizontalArrangement = Arrangement.Center) {
                 OutlinedButton(
-                    onClick = onIncrease,
-                    modifier = Modifier.size(width = 48.dp, height = 36.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, accentColor),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = accentColor),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                ) { Text("+", fontWeight = FontWeight.Bold) }
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                OutlinedButton(
                     onClick = onDecrease,
                     modifier = Modifier.size(width = 48.dp, height = 36.dp),
                     shape = RoundedCornerShape(8.dp),
@@ -386,6 +375,17 @@ fun SingleStatCard(
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF888888)),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                 ) { Text("−", fontWeight = FontWeight.Bold) }
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                OutlinedButton(
+                    onClick = onIncrease,
+                    modifier = Modifier.size(width = 48.dp, height = 36.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, accentColor),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = accentColor),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                ) { Text("+", fontWeight = FontWeight.Bold) }
             }
         }
     }
@@ -432,15 +432,6 @@ fun DualStatCard(
                     Spacer(modifier = Modifier.height(6.dp))
                     Row {
                         OutlinedButton(
-                            onClick = onFavorIncrease,
-                            modifier = Modifier.size(width = 38.dp, height = 32.dp),
-                            shape = RoundedCornerShape(7.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, accentColor),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = accentColor),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                        ) { Text("+", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                        Spacer(modifier = Modifier.width(4.dp))
-                        OutlinedButton(
                             onClick = onFavorDecrease,
                             modifier = Modifier.size(width = 38.dp, height = 32.dp),
                             shape = RoundedCornerShape(7.dp),
@@ -448,6 +439,15 @@ fun DualStatCard(
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF888888)),
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                         ) { Text("−", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        OutlinedButton(
+                            onClick = onFavorIncrease,
+                            modifier = Modifier.size(width = 38.dp, height = 32.dp),
+                            shape = RoundedCornerShape(7.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, accentColor),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = accentColor),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                        ) { Text("+", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
 
@@ -461,15 +461,6 @@ fun DualStatCard(
                     Spacer(modifier = Modifier.height(6.dp))
                     Row {
                         OutlinedButton(
-                            onClick = onContraIncrease,
-                            modifier = Modifier.size(width = 38.dp, height = 32.dp),
-                            shape = RoundedCornerShape(7.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                        ) { Text("+", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                        Spacer(modifier = Modifier.width(4.dp))
-                        OutlinedButton(
                             onClick = onContraDecrease,
                             modifier = Modifier.size(width = 38.dp, height = 32.dp),
                             shape = RoundedCornerShape(7.dp),
@@ -477,6 +468,15 @@ fun DualStatCard(
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF888888)),
                             contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
                         ) { Text("−", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        OutlinedButton(
+                            onClick = onContraIncrease,
+                            modifier = Modifier.size(width = 38.dp, height = 32.dp),
+                            shape = RoundedCornerShape(7.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+                        ) { Text("+", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
             }

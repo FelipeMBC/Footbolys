@@ -22,11 +22,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GpsFixed
@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SouthWest
 import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.filled.TrackChanges
@@ -72,6 +73,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.fmarquez.footboly.modelos.MatchEvent
 import com.fmarquez.footboly.modelos.MatchRecord
 import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.navigation.Screen
@@ -86,6 +88,38 @@ private val TextSecondary = Color(0xFF888888)
 private val BorderColor   = Color(0xFFE0E0DC)
 private val ErrorRed      = Color(0xFFD32F2F)
 
+private data class EventSummaryItem(
+    val type: String,
+    val total: Int,
+    val players: List<Pair<String, Int>>
+)
+
+private fun parseEventCount(detail: String): Int {
+    return detail.substringAfter(": ", "").toIntOrNull() ?: 1
+}
+
+private fun buildEventSummary(events: List<MatchEvent>): List<EventSummaryItem> {
+    val grouped = events.groupBy { it.type }
+
+    return grouped.map { (type, typeEvents) ->
+        val total = typeEvents.sumOf { parseEventCount(it.detail) }
+
+        val players = typeEvents
+            .groupBy { it.playerName.ifBlank { "Sin jugador" } }
+            .map { (playerName, playerEvents) ->
+                val playerTotal = playerEvents.sumOf { parseEventCount(it.detail) }
+                playerName to playerTotal
+            }
+            .sortedBy { it.first }
+
+        EventSummaryItem(
+            type = type,
+            total = total,
+            players = players
+        )
+    }.sortedBy { it.type }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MatchTimelineScreen(
@@ -95,6 +129,8 @@ fun MatchTimelineScreen(
     val selectedMatch = vm.selectedFinishedMatch
     var showAllDetailsDialog by remember { mutableStateOf(false) }
     var matchToDelete by remember { mutableStateOf<MatchRecord?>(null) }
+    var selectedEventSummary by remember { mutableStateOf<EventSummaryItem?>(null) }
+    val summarizedEvents = selectedMatch?.let { buildEventSummary(it.events) } ?: emptyList()
 
     Scaffold(
         containerColor = BgColor,
@@ -128,7 +164,10 @@ fun MatchTimelineScreen(
                 onSelectMatch = { vm.selectFinishedMatch(it) },
                 onEditMatch = { vm.selectFinishedMatch(it) },
                 onDeleteMatch = { matchToDelete = it },
-                modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp, vertical = 16.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
             )
         } else {
             MatchDetailContent(
@@ -138,36 +177,199 @@ fun MatchTimelineScreen(
                     vm.startEditingPlayerFromFinishedMatch(selectedMatch, player.id)
                     navHostController.navigate(Screen.PLAYER_STATS.route)
                 },
-                modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 20.dp, vertical = 16.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
             )
         }
     }
 
     if (showAllDetailsDialog && selectedMatch != null) {
+        val matchColor = hexToColor(selectedMatch.shirtColorHex)
+        val matchColorLight = teamColorLight(matchColor)
+
         AlertDialog(
             onDismissRequest = { showAllDetailsDialog = false },
             containerColor = SurfaceColor,
             shape = RoundedCornerShape(20.dp),
-            title = { Text("Todos los eventos", fontWeight = FontWeight.Bold, color = TextPrimary) },
+            title = {
+                Text(
+                    "Totales del partido",
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
             text = {
-                Column {
-                    if (selectedMatch.events.isEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (summarizedEvents.isEmpty()) {
                         Text("No hay eventos registrados", color = TextSecondary)
                     } else {
-                        selectedMatch.events.forEach { event ->
-                            Text(
-                                "${formatEventTitle(event.type, event.detail)} · ${event.playerName} · ${event.timestampLabel}",
-                                fontSize = 13.sp, color = TextSecondary,
-                                modifier = Modifier.padding(vertical = 2.dp)
-                            )
+                        summarizedEvents.forEach { item ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { selectedEventSummary = item }
+                                    .border(1.dp, BorderColor, RoundedCornerShape(12.dp)),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(matchColorLight),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = eventIcon(item.type),
+                                            contentDescription = item.type,
+                                            tint = matchColor,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = item.type,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 14.sp,
+                                            color = TextPrimary
+                                        )
+                                        Text(
+                                            text = "Toca para ver jugadores",
+                                            fontSize = 12.sp,
+                                            color = TextSecondary
+                                        )
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(BgColor)
+                                            .border(1.dp, BorderColor, RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = item.total.toString(),
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = TextPrimary
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             },
             confirmButton = {
-                val matchColor = hexToColor(selectedMatch.shirtColorHex)
                 TextButton(onClick = { showAllDetailsDialog = false }) {
                     Text("Cerrar", color = matchColor)
+                }
+            }
+        )
+    }
+
+    if (selectedEventSummary != null) {
+        val selectedMatchColor = selectedMatch?.let { hexToColor(it.shirtColorHex) } ?: Color(0xFF1E6B45)
+        val selectedMatchColorLight = teamColorLight(selectedMatchColor)
+        val eventItem = selectedEventSummary!!
+
+        AlertDialog(
+            onDismissRequest = { selectedEventSummary = null },
+            containerColor = SurfaceColor,
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text(
+                    text = eventItem.type,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Total: ${eventItem.total}",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextSecondary
+                    )
+
+                    if (eventItem.players.isEmpty()) {
+                        Text("No hay jugadores asociados", color = TextSecondary)
+                    } else {
+                        eventItem.players.forEach { (playerName, count) ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(1.dp, BorderColor, RoundedCornerShape(10.dp)),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(30.dp)
+                                            .clip(CircleShape)
+                                            .background(selectedMatchColorLight),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Person,
+                                            contentDescription = null,
+                                            tint = selectedMatchColor,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(10.dp))
+
+                                    Text(
+                                        text = playerName,
+                                        fontSize = 13.sp,
+                                        color = TextPrimary,
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(BgColor)
+                                            .border(1.dp, BorderColor, RoundedCornerShape(8.dp))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = "×$count",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = selectedMatchColor
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedEventSummary = null }) {
+                    Text("Cerrar", color = selectedMatchColor)
                 }
             }
         )
@@ -180,11 +382,20 @@ fun MatchTimelineScreen(
             shape = RoundedCornerShape(20.dp),
             title = { Text("Eliminar partido", fontWeight = FontWeight.Bold, color = TextPrimary) },
             text = { Text("¿Eliminar este partido guardado?", color = TextSecondary) },
-            dismissButton = { TextButton(onClick = { matchToDelete = null }) { Text("Cancelar", color = TextSecondary) } },
+            dismissButton = {
+                TextButton(onClick = { matchToDelete = null }) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            },
             confirmButton = {
                 TextButton(
-                    onClick = { vm.deleteFinishedMatch(matchToDelete!!.id); matchToDelete = null }
-                ) { Text("Eliminar", color = ErrorRed, fontWeight = FontWeight.SemiBold) }
+                    onClick = {
+                        vm.deleteFinishedMatch(matchToDelete!!.id)
+                        matchToDelete = null
+                    }
+                ) {
+                    Text("Eliminar", color = ErrorRed, fontWeight = FontWeight.SemiBold)
+                }
             }
         )
     }
@@ -198,12 +409,19 @@ fun MatchTimelineScreen(
             title = { Text("Cambios realizados", fontWeight = FontWeight.Bold, color = TextPrimary) },
             text = {
                 Column {
-                    if (vm.lastEditChanges.isEmpty()) Text("No hubo cambios", color = TextSecondary)
-                    else vm.lastEditChanges.forEach { line -> Text(line, fontSize = 13.sp, color = TextSecondary) }
+                    if (vm.lastEditChanges.isEmpty()) {
+                        Text("No hubo cambios", color = TextSecondary)
+                    } else {
+                        vm.lastEditChanges.forEach { line ->
+                            Text(line, fontSize = 13.sp, color = TextSecondary)
+                        }
+                    }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { vm.dismissEditResultDialog() }) { Text("Aceptar", color = matchColor) }
+                TextButton(onClick = { vm.dismissEditResultDialog() }) {
+                    Text("Aceptar", color = matchColor)
+                }
             }
         )
     }
@@ -228,8 +446,7 @@ fun MatchHistoryList(
     } else {
         LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             items(matches, key = { it.id }) { match ->
-                // Color dinámico por partido
-                val matchColor      = hexToColor(match.shirtColorHex)
+                val matchColor = hexToColor(match.shirtColorHex)
                 val matchColorLight = teamColorLight(matchColor)
 
                 var expanded by remember { mutableStateOf(false) }
@@ -244,7 +461,9 @@ fun MatchHistoryList(
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -267,16 +486,49 @@ fun MatchHistoryList(
                                 color = TextPrimary
                             )
                             Spacer(modifier = Modifier.height(4.dp))
+
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.DateRange, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(13.dp))
+                                Icon(
+                                    Icons.Default.CalendarMonth,
+                                    contentDescription = null,
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(13.dp)
+                                )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text(match.finishedAtLabel.ifBlank { "Sin fecha" }, fontSize = 12.sp, color = TextSecondary)
+                                Text(
+                                    text = match.matchDateLabel.ifBlank { match.finishedAtLabel.ifBlank { "Sin fecha" } },
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
                             }
+
+                            if (match.rivalName.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        Icons.Default.Shield,
+                                        contentDescription = null,
+                                        tint = matchColor,
+                                        modifier = Modifier.size(13.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "vs ${match.rivalName}",
+                                        fontSize = 12.sp,
+                                        color = matchColor,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+
                             Spacer(modifier = Modifier.height(2.dp))
-                            Text("${match.totalSeconds / 60} min · ${match.events.size} eventos", fontSize = 12.sp, color = TextSecondary)
+                            Text(
+                                "${match.totalSeconds / 60} min · ${match.events.size} eventos",
+                                fontSize = 12.sp,
+                                color = TextSecondary
+                            )
                         }
 
-                        // Punto de color del equipo
                         Box(
                             modifier = Modifier
                                 .size(8.dp)
@@ -297,13 +549,23 @@ fun MatchHistoryList(
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("Editar", color = TextPrimary) },
-                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null, tint = TextSecondary) },
-                                    onClick = { expanded = false; onEditMatch(match) }
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Edit, contentDescription = null, tint = TextSecondary)
+                                    },
+                                    onClick = {
+                                        expanded = false
+                                        onEditMatch(match)
+                                    }
                                 )
                                 DropdownMenuItem(
                                     text = { Text("Eliminar", color = ErrorRed) },
-                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = ErrorRed) },
-                                    onClick = { expanded = false; onDeleteMatch(match) }
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Delete, contentDescription = null, tint = ErrorRed)
+                                    },
+                                    onClick = {
+                                        expanded = false
+                                        onDeleteMatch(match)
+                                    }
                                 )
                             }
                         }
@@ -321,17 +583,18 @@ fun MatchDetailContent(
     onEditPlayerStats: (Player) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val starters    = match.starters.sortedBy { it.number }
+    val starters = match.starters.sortedBy { it.number }
     val substitutes = match.substitutes.sortedBy { it.number }
 
-    // Colores dinámicos del partido
-    val teamColor      = hexToColor(match.shirtColorHex)
+    val teamColor = hexToColor(match.shirtColorHex)
     val teamColorLight = teamColorLight(teamColor)
 
     LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Card(
-                modifier = Modifier.fillMaxWidth().border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = teamColorLight),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -340,6 +603,16 @@ fun MatchDetailContent(
                     Text("Partido terminado", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = teamColor)
                     Spacer(modifier = Modifier.height(8.dp))
                     SummaryRow("Equipo", match.teamName, teamColor)
+                    if (match.rivalName.isNotBlank()) {
+                        SummaryRow("Rival", match.rivalName, teamColor)
+                    }
+                    if (match.matchDateLabel.isNotBlank()) {
+                        SummaryRowWithIcon(
+                            label = "Fecha",
+                            value = match.matchDateLabel,
+                            teamColor = teamColor
+                        )
+                    }
                     SummaryRow("Duración", "${match.totalSeconds / 60} min", teamColor)
                     SummaryRow("Eventos", "${match.events.size}", teamColor)
                 }
@@ -349,7 +622,9 @@ fun MatchDetailContent(
         item {
             Button(
                 onClick = onShowAllDetails,
-                modifier = Modifier.fillMaxWidth().height(48.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = TextPrimary, contentColor = Color.White),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
@@ -366,7 +641,13 @@ fun MatchDetailContent(
 
         item {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Titulares", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+                Text(
+                    "Titulares",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
@@ -396,7 +677,13 @@ fun MatchDetailContent(
 
         item {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text("Reservas", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+                Text(
+                    "Reservas",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
@@ -515,6 +802,27 @@ private fun SummaryRow(label: String, value: String, teamColor: Color) {
 }
 
 @Composable
+private fun SummaryRowWithIcon(label: String, value: String, teamColor: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 13.sp, color = teamColor.copy(alpha = 0.7f))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Default.CalendarMonth,
+                contentDescription = null,
+                tint = teamColor,
+                modifier = Modifier.size(13.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = teamColor)
+        }
+    }
+}
+
+@Composable
 fun MatchEventReportCard(
     title: String,
     timeLabel: String,
@@ -526,13 +834,17 @@ fun MatchEventReportCard(
     val isSwap = title == "Cambio" || detail.startsWith("Entra ")
 
     Card(
-        modifier = Modifier.fillMaxWidth().border(1.dp, BorderColor, RoundedCornerShape(12.dp)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, BorderColor, RoundedCornerShape(12.dp)),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
@@ -580,7 +892,12 @@ fun MatchEventReportCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.AccessTime, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(11.dp))
                     Spacer(modifier = Modifier.width(3.dp))
-                    Text(timeLabel.ifBlank { "00:00" }, fontSize = 12.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
+                    Text(
+                        timeLabel.ifBlank { "00:00" },
+                        fontSize = 12.sp,
+                        color = TextSecondary,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }

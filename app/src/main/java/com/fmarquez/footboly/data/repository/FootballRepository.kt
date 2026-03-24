@@ -141,7 +141,7 @@ class FootballRepository(
         teamDao.deletePlayer(playerId)
     }
 
-    suspend fun createNewMatch(team: Team): MatchRecord {
+    suspend fun createNewMatch(team: Team, rivalName: String = "", matchDateLabel: String = ""): MatchRecord {
         val matchId = matchDao.getNextMatchId()
 
         val matchEntity = MatchEntity(
@@ -149,6 +149,8 @@ class FootballRepository(
             teamId = team.id,
             teamNameSnapshot = team.name,
             shirtColorHex = team.shirtColorHex,
+            rivalName = rivalName,
+            matchDateLabel = matchDateLabel,
             isStarted = false,
             isFinished = false,
             totalSeconds = 60,

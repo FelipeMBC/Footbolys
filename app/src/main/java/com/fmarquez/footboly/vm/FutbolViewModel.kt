@@ -529,6 +529,16 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { repository.updateMatch(updatedMatch) }
     }
 
+    fun setMatchRivalAndDate(rivalName: String, matchDateLabel: String) {
+        val match = currentMatch ?: return
+        val updatedMatch = match.copy(
+            rivalName = rivalName,
+            matchDateLabel = matchDateLabel
+        )
+        currentMatch = updatedMatch
+        viewModelScope.launch { repository.updateMatch(updatedMatch) }
+    }
+
     fun selectTeam(team: Team) {
         selectedTeamId = team.id
     }
