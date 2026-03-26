@@ -177,44 +177,6 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         return getActiveMatchForStatsInternal()
     }
 
-    fun getCurrentStarters(match: MatchRecord? = currentMatch): List<Player> {
-        val safeMatch = match ?: return emptyList()
-
-        if (!safeMatch.isStarted || safeMatch.isFinished) {
-            return safeMatch.starters.sortedBy { it.number }
-        }
-
-        val allSelectedPlayers = (safeMatch.starters + safeMatch.substitutes).distinctBy { it.id }
-        val currentPlayingIds = safeMatch.playerTimes
-            .values
-            .filter { it.isCurrentlyPlaying }
-            .map { it.playerId }
-            .toSet()
-
-        return allSelectedPlayers
-            .filter { it.id in currentPlayingIds }
-            .sortedBy { it.number }
-    }
-
-    fun getCurrentSubstitutes(match: MatchRecord? = currentMatch): List<Player> {
-        val safeMatch = match ?: return emptyList()
-
-        if (!safeMatch.isStarted || safeMatch.isFinished) {
-            return safeMatch.substitutes.sortedBy { it.number }
-        }
-
-        val allSelectedPlayers = (safeMatch.starters + safeMatch.substitutes).distinctBy { it.id }
-        val currentPlayingIds = safeMatch.playerTimes
-            .values
-            .filter { it.isCurrentlyPlaying }
-            .map { it.playerId }
-            .toSet()
-
-        return allSelectedPlayers
-            .filter { it.id !in currentPlayingIds }
-            .sortedBy { it.number }
-    }
-
     fun isEditingFinishedMatchMode(): Boolean {
         return editingFinishedMatch != null
     }
@@ -296,7 +258,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun buildDraftFromMatch(match: MatchRecord, playerId: Int): PlayerStatsDraft {
-        val player = (match.starters + match.substitutes).firstOrNull { it.id == playerId }
+        val allPlayers = match.starters + match.substitutes + match.expelledPlayers + match.injuredPlayers
+        val player = allPlayers.firstOrNull { it.id == playerId }
             ?: return PlayerStatsDraft(playerId = playerId, matchId = match.id)
 
         val playerEvents = match.events.filter { it.playerId == player.id }
@@ -450,8 +413,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun saveEditedFinishedMatch(playerId: Int): List<String> {
         val match = editingFinishedMatch ?: return emptyList()
-        val player = (match.starters + match.substitutes).firstOrNull { it.id == playerId }
-            ?: return emptyList()
+        val allPlayers = match.starters + match.substitutes + match.expelledPlayers + match.injuredPlayers
+        val player = allPlayers.firstOrNull { it.id == playerId } ?: return emptyList()
 
         val key = statsDraftKey(match.id, playerId)
         val updatedDraft = playerStatsDrafts[key] ?: return emptyList()
@@ -543,6 +506,11 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
             )
             currentMatch = updatedMatch
 
+            playerStatsDrafts[key] = PlayerStatsDraft(
+                playerId = player.id,
+                matchId = match.id
+            )
+
             viewModelScope.launch {
                 repository.addEvents(match.id, newEvents)
             }
@@ -572,6 +540,24 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         val updatedMatch = match.copy(
             rivalName = rivalName,
             matchDateLabel = matchDateLabel
+        )
+        currentMatch = updatedMatch
+        viewModelScope.launch { repository.updateMatch(updatedMatch) }
+    }
+
+    fun updateOpponentGoals(delta: Int) {
+        val match = currentMatch ?: return
+        val updatedMatch = match.copy(
+            opponentGoals = (match.opponentGoals + delta).coerceAtLeast(0)
+        )
+        currentMatch = updatedMatch
+        viewModelScope.launch { repository.updateMatch(updatedMatch) }
+    }
+
+    fun updateOpponentGoalChances(delta: Int) {
+        val match = currentMatch ?: return
+        val updatedMatch = match.copy(
+            opponentGoalChances = (match.opponentGoalChances + delta).coerceAtLeast(0)
         )
         currentMatch = updatedMatch
         viewModelScope.launch { repository.updateMatch(updatedMatch) }
@@ -625,7 +611,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     fun getSelectedPlayer(): Player? {
         val match = getActiveMatchForStatsInternal() ?: return null
         val id = selectedPlayerId ?: return null
-        return (match.starters + match.substitutes).firstOrNull { it.id == id }
+        val allPlayers = match.starters + match.substitutes + match.expelledPlayers + match.injuredPlayers
+        return allPlayers.firstOrNull { it.id == id }
     }
 
     private fun getElapsedMatchTimeLabel(match: MatchRecord): String {
@@ -687,6 +674,44 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         return String.format("%02d:%02d", minutes, seconds)
     }
 
+    fun getCurrentStarters(match: MatchRecord? = currentMatch): List<Player> {
+        val safeMatch = match ?: return emptyList()
+
+        if (!safeMatch.isStarted || safeMatch.isFinished) {
+            return safeMatch.starters.sortedBy { it.number }
+        }
+
+        val allSelectedPlayers = (safeMatch.starters + safeMatch.substitutes).distinctBy { it.id }
+        val currentPlayingIds = safeMatch.playerTimes
+            .values
+            .filter { it.isCurrentlyPlaying }
+            .map { it.playerId }
+            .toSet()
+
+        return allSelectedPlayers
+            .filter { it.id in currentPlayingIds }
+            .sortedBy { it.number }
+    }
+
+    fun getCurrentSubstitutes(match: MatchRecord? = currentMatch): List<Player> {
+        val safeMatch = match ?: return emptyList()
+
+        if (!safeMatch.isStarted || safeMatch.isFinished) {
+            return safeMatch.substitutes.sortedBy { it.number }
+        }
+
+        val allSelectedPlayers = (safeMatch.starters + safeMatch.substitutes).distinctBy { it.id }
+        val currentPlayingIds = safeMatch.playerTimes
+            .values
+            .filter { it.isCurrentlyPlaying }
+            .map { it.playerId }
+            .toSet()
+
+        return allSelectedPlayers
+            .filter { it.id !in currentPlayingIds }
+            .sortedBy { it.number }
+    }
+
     fun stopMatch() {
         val match = currentMatch ?: return
         matchTimerJob?.cancel()
@@ -719,23 +744,71 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     fun getTotalEventsOfCurrentMatch() = currentMatch?.events?.size ?: 0
     fun getTotalEventsOfSelectedFinishedMatch() = selectedFinishedMatch?.events?.size ?: 0
 
+    private fun removePlayerFromAllLists(match: MatchRecord, playerId: Int): MatchRecord {
+        return match.copy(
+            starters = match.starters.filterNot { it.id == playerId }.toMutableList(),
+            substitutes = match.substitutes.filterNot { it.id == playerId }.toMutableList(),
+            expelledPlayers = match.expelledPlayers.filterNot { it.id == playerId }.toMutableList(),
+            injuredPlayers = match.injuredPlayers.filterNot { it.id == playerId }.toMutableList()
+        )
+    }
+
     fun toggleStarter(player: Player) {
         val match = currentMatch ?: return
         if (match.isStarted || match.isFinished) return
 
-        val updatedStarters = match.starters.toMutableList()
-        val updatedSubs = match.substitutes.toMutableList()
-        val exists = updatedStarters.any { it.id == player.id }
+        val cleanedMatch = removePlayerFromAllLists(match, player.id)
+        val updatedStarters = cleanedMatch.starters.toMutableList()
+        val exists = match.starters.any { it.id == player.id }
 
-        if (exists) {
-            updatedStarters.removeAll { it.id == player.id }
-        } else if (updatedSubs.none { it.id == player.id } && updatedStarters.size < 11) {
+        if (!exists && updatedStarters.size < 11) {
             updatedStarters.add(player)
         }
 
-        val updatedMatch = match.copy(
-            starters = updatedStarters,
-            substitutes = updatedSubs
+        val updatedMatch = cleanedMatch.copy(
+            starters = if (exists) cleanedMatch.starters else updatedStarters
+        )
+        currentMatch = updatedMatch
+        viewModelScope.launch { repository.saveMatchAndLineup(updatedMatch) }
+    }
+
+    fun toggleSubstitute(player: Player) {
+        val match = currentMatch ?: return
+        if (match.isStarted || match.isFinished) return
+
+        val cleanedMatch = removePlayerFromAllLists(match, player.id)
+        val exists = match.substitutes.any { it.id == player.id }
+
+        val updatedMatch = cleanedMatch.copy(
+            substitutes = if (exists) cleanedMatch.substitutes else cleanedMatch.substitutes.toMutableList().apply { add(player) }
+        )
+        currentMatch = updatedMatch
+        viewModelScope.launch { repository.saveMatchAndLineup(updatedMatch) }
+    }
+
+    fun toggleExpelled(player: Player) {
+        val match = currentMatch ?: return
+        if (match.isStarted || match.isFinished) return
+
+        val cleanedMatch = removePlayerFromAllLists(match, player.id)
+        val exists = match.expelledPlayers.any { it.id == player.id }
+
+        val updatedMatch = cleanedMatch.copy(
+            expelledPlayers = if (exists) cleanedMatch.expelledPlayers else cleanedMatch.expelledPlayers.toMutableList().apply { add(player) }
+        )
+        currentMatch = updatedMatch
+        viewModelScope.launch { repository.saveMatchAndLineup(updatedMatch) }
+    }
+
+    fun toggleInjured(player: Player) {
+        val match = currentMatch ?: return
+        if (match.isStarted || match.isFinished) return
+
+        val cleanedMatch = removePlayerFromAllLists(match, player.id)
+        val exists = match.injuredPlayers.any { it.id == player.id }
+
+        val updatedMatch = cleanedMatch.copy(
+            injuredPlayers = if (exists) cleanedMatch.injuredPlayers else cleanedMatch.injuredPlayers.toMutableList().apply { add(player) }
         )
         currentMatch = updatedMatch
         viewModelScope.launch { repository.saveMatchAndLineup(updatedMatch) }
@@ -764,28 +837,6 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         selectedFinishedMatch = null
         clearEditingFinishedMatch()
         selectedPlayerId = null
-    }
-
-    fun toggleSubstitute(player: Player) {
-        val match = currentMatch ?: return
-        if (match.isStarted || match.isFinished) return
-
-        val updatedStarters = match.starters.toMutableList()
-        val updatedSubs = match.substitutes.toMutableList()
-        val exists = updatedSubs.any { it.id == player.id }
-
-        if (exists) {
-            updatedSubs.removeAll { it.id == player.id }
-        } else if (updatedStarters.none { it.id == player.id }) {
-            updatedSubs.add(player)
-        }
-
-        val updatedMatch = match.copy(
-            starters = updatedStarters,
-            substitutes = updatedSubs
-        )
-        currentMatch = updatedMatch
-        viewModelScope.launch { repository.saveMatchAndLineup(updatedMatch) }
     }
 
     fun startMatch() {
@@ -964,7 +1015,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     fun addEvent(minuteText: String, type: String, playerName: String) {
         val match = currentMatch ?: return
         val minute = minuteText.toIntOrNull() ?: 0
-        val playerId = (match.starters + match.substitutes).firstOrNull { it.name == playerName }?.id
+        val allPlayers = match.starters + match.substitutes + match.expelledPlayers + match.injuredPlayers
+        val playerId = allPlayers.firstOrNull { it.name == playerName }?.id
         val event = MatchEvent(
             minute = minute,
             type = type,

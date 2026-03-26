@@ -27,8 +27,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Healing
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -63,7 +65,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -79,9 +80,15 @@ private val SurfaceColor  = Color(0xFFFFFFFF)
 private val TextPrimary   = Color(0xFF111111)
 private val TextSecondary = Color(0xFF888888)
 private val BorderColor   = Color(0xFFE0E0DC)
+private val BlockedGray   = Color(0xFFEAEAEA)
+private val BlockedText   = Color(0xFF8C8C8C)
+private val ErrorRed      = Color(0xFFD32F2F)
+private val ErrorRedLight = Color(0xFFFFF1F1)
+private val InjuryAmber   = Color(0xFFE65100)
+private val InjuryLight   = Color(0xFFFFF3E0)
 
-private val DIAS   = listOf("Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb")
-private val MESES  = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
+private val DIAS  = listOf("Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb")
+private val MESES = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
 
 private fun formatDateLabel(year: Int, month: Int, day: Int, hour: Int, minute: Int): String {
     val cal = Calendar.getInstance().apply { set(year, month, day) }
@@ -98,33 +105,32 @@ fun MatchConfigScreen(
     vm: FutbolViewModel,
     navHostController: NavHostController
 ) {
-    val team  = vm.selectedTeam  ?: return
-    val match = vm.currentMatch  ?: return
+    val team = vm.selectedTeam ?: return
+    val match = vm.currentMatch ?: return
     val context = LocalContext.current
 
-    val teamColor      = hexToColor(team.shirtColorHex)
+    val teamColor = hexToColor(team.shirtColorHex)
     val teamColorLight = teamColorLight(teamColor)
 
-    var selectedTab      by rememberSaveable { mutableIntStateOf(0) }
-    var showSetupDialog  by remember { mutableStateOf(false) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var showSetupDialog by remember { mutableStateOf(false) }
     var showLessThanElevenDialog by remember { mutableStateOf(false) }
 
-    // Estado del diálogo
-    var rivalName           by remember { mutableStateOf("") }
+    var rivalName by remember { mutableStateOf("") }
     var matchDurationMinutes by remember { mutableFloatStateOf(60f) }
 
-    val nowCal  = remember { Calendar.getInstance() }
-    var selYear   by remember { mutableIntStateOf(nowCal.get(Calendar.YEAR)) }
-    var selMonth  by remember { mutableIntStateOf(nowCal.get(Calendar.MONTH)) }
-    var selDay    by remember { mutableIntStateOf(nowCal.get(Calendar.DAY_OF_MONTH)) }
-    var selHour   by remember { mutableIntStateOf(nowCal.get(Calendar.HOUR_OF_DAY)) }
+    val nowCal = remember { Calendar.getInstance() }
+    var selYear by remember { mutableIntStateOf(nowCal.get(Calendar.YEAR)) }
+    var selMonth by remember { mutableIntStateOf(nowCal.get(Calendar.MONTH)) }
+    var selDay by remember { mutableIntStateOf(nowCal.get(Calendar.DAY_OF_MONTH)) }
+    var selHour by remember { mutableIntStateOf(nowCal.get(Calendar.HOUR_OF_DAY)) }
     var selMinute by remember { mutableIntStateOf(nowCal.get(Calendar.MINUTE)) }
     var dateChosen by remember { mutableStateOf(false) }
     var timeChosen by remember { mutableStateOf(false) }
 
     LaunchedEffect(match.isStarted, match.isFinished) {
         if (match.isStarted && !match.isFinished) {
-            navHostController.navigate(Screen.REPORT_SCREEN.route) {
+            navHostController.navigate(Screen.MATCH_LIVE.route) {
                 popUpTo(Screen.MATCH_CONFIG.route) { inclusive = true }
                 launchSingleTop = true
             }
@@ -138,16 +144,23 @@ fun MatchConfigScreen(
     }
 
     fun confirmStart() {
-        val dateLabel = if (dateChosen || timeChosen)
-            formatDateLabel(selYear, selMonth, selDay, selHour, selMinute) else ""
+        val dateLabel = if (dateChosen || timeChosen) {
+            formatDateLabel(selYear, selMonth, selDay, selHour, selMinute)
+        } else {
+            ""
+        }
+
         vm.setMatchRivalAndDate(rivalName.trim(), dateLabel)
         vm.setMatchDuration(matchDurationMinutes.toInt())
         vm.startMatch()
-        navHostController.navigate(Screen.REPORT_SCREEN.route) {
+
+        navHostController.navigate(Screen.MATCH_LIVE.route) {
             popUpTo(Screen.MATCH_CONFIG.route) { inclusive = true }
             launchSingleTop = true
         }
     }
+
+    val availableForStart = match.starters.size + match.substitutes.size
 
     Scaffold(
         containerColor = BgColor,
@@ -157,8 +170,8 @@ fun MatchConfigScreen(
                     Text(
                         text = when {
                             match.isFinished -> "Partido terminado"
-                            match.isStarted  -> vm.getFormattedMatchTime()
-                            else             -> team.name
+                            match.isStarted -> vm.getFormattedMatchTime()
+                            else -> team.name
                         },
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 18.sp,
@@ -169,21 +182,33 @@ fun MatchConfigScreen(
                     IconButton(
                         onClick = {
                             if (match.isStarted && !match.isFinished) {
-                                Toast.makeText(context, "No puedes volver mientras el partido está en curso", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    "No puedes volver mientras el partido está en curso",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             } else {
                                 navHostController.popBackStack()
                             }
                         }
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = TextPrimary)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Volver",
+                            tint = TextPrimary
+                        )
                     }
                 },
                 actions = {
                     if (!match.isStarted && !match.isFinished) {
                         IconButton(
                             onClick = {
-                                if (match.starters.size + match.substitutes.size < 5) {
-                                    Toast.makeText(context, "Selecciona al menos 5 jugadores para iniciar", Toast.LENGTH_SHORT).show()
+                                if (availableForStart < 5) {
+                                    Toast.makeText(
+                                        context,
+                                        "Selecciona al menos 5 jugadores disponibles para iniciar",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                     return@IconButton
                                 }
 
@@ -199,7 +224,12 @@ fun MatchConfigScreen(
                                 .clip(CircleShape)
                                 .background(teamColor)
                         ) {
-                            Icon(Icons.Default.PlayArrow, contentDescription = "Iniciar", tint = Color.White, modifier = Modifier.size(18.dp))
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = "Iniciar",
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     }
                 },
@@ -207,7 +237,11 @@ fun MatchConfigScreen(
             )
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = SurfaceColor,
@@ -221,68 +255,162 @@ fun MatchConfigScreen(
                     )
                 },
                 divider = {
-                    Box(modifier = Modifier.height(1.dp).fillMaxWidth().background(BorderColor))
+                    Box(
+                        modifier = Modifier
+                            .height(1.dp)
+                            .fillMaxWidth()
+                            .background(BorderColor)
+                    )
                 }
             ) {
-                listOf("Titulares (${match.starters.size})", "Reservas (${match.substitutes.size})")
-                    .forEachIndexed { i, title ->
-                        Tab(
-                            selected = selectedTab == i,
-                            onClick = { selectedTab = i },
-                            text = {
-                                Text(
-                                    text = title,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (selectedTab == i) FontWeight.SemiBold else FontWeight.Normal,
-                                    color = if (selectedTab == i) teamColor else TextSecondary
-                                )
-                            }
-                        )
-                    }
+                val tabs = listOf(
+                    "Titulares (${match.starters.size})",
+                    "Reservas (${match.substitutes.size})",
+                    "Expulsados (${match.expelledPlayers.size})",
+                    "Lesionados (${match.injuredPlayers.size})"
+                )
+
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = {
+                            Text(
+                                text = title,
+                                fontSize = 12.sp,
+                                fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (selectedTab == index) teamColor else TextSecondary
+                            )
+                        }
+                    )
+                }
             }
 
-            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
+            ) {
+                val infoText = when (selectedTab) {
+                    0 -> "Selecciona hasta 11 titulares"
+                    1 -> "Selecciona las reservas disponibles"
+                    2 -> "Jugadores apartados por expulsión previa"
+                    else -> "Jugadores apartados por lesión"
+                }
+
                 Text(
-                    text = if (selectedTab == 0) "Selecciona los titulares que quieras"
-                    else "Selecciona las reservas que quieras",
+                    text = infoText,
                     fontSize = 13.sp,
                     color = TextSecondary
                 )
+
                 Spacer(modifier = Modifier.height(8.dp))
-                val total = match.starters.size + match.substitutes.size
+
                 Text(
-                    text = "Mínimo requerido para iniciar: 5 jugadores · Seleccionados: $total",
+                    text = "Disponibles para iniciar: $availableForStart · Titulares: ${match.starters.size}/11",
                     fontSize = 12.sp,
-                    color = if (total >= 5) teamColor else TextSecondary
+                    color = if (availableForStart >= 5) teamColor else TextSecondary
                 )
+
                 Spacer(modifier = Modifier.height(12.dp))
 
-                if (selectedTab == 0) {
-                    SelectablePlayersList(
-                        allPlayers = team.players,
-                        selectedPlayers = match.starters,
-                        max = team.players.size,
-                        blockedPlayers = match.substitutes,
-                        enabled = !match.isStarted && !match.isFinished,
-                        accentColor = teamColor,
-                        accentColorLight = teamColorLight,
-                        onToggle = { vm.toggleStarter(it) }
-                    )
-                } else {
-                    SelectablePlayersList(
-                        allPlayers = team.players,
-                        selectedPlayers = match.substitutes,
-                        max = team.players.size,
-                        blockedPlayers = match.starters,
-                        enabled = !match.isStarted && !match.isFinished,
-                        accentColor = teamColor,
-                        accentColorLight = teamColorLight,
-                        onToggle = { vm.toggleSubstitute(it) }
-                    )
+                when (selectedTab) {
+                    0 -> {
+                        SelectablePlayersList(
+                            allPlayers = team.players,
+                            selectedPlayers = match.starters,
+                            blockedPlayers = match.substitutes + match.expelledPlayers + match.injuredPlayers,
+                            enabled = !match.isStarted && !match.isFinished,
+                            accentColor = teamColor,
+                            accentColorLight = teamColorLight,
+                            blockedBackground = BlockedGray,
+                            blockedTextColor = BlockedText,
+                            max = 11,
+                            blockedReason = { player ->
+                                when {
+                                    match.substitutes.any { it.id == player.id } -> "En reservas"
+                                    match.expelledPlayers.any { it.id == player.id } -> "Expulsado"
+                                    match.injuredPlayers.any { it.id == player.id } -> "Lesionado"
+                                    else -> ""
+                                }
+                            },
+                            onToggle = { vm.toggleStarter(it) }
+                        )
+                    }
+
+                    1 -> {
+                        SelectablePlayersList(
+                            allPlayers = team.players,
+                            selectedPlayers = match.substitutes,
+                            blockedPlayers = match.starters + match.expelledPlayers + match.injuredPlayers,
+                            enabled = !match.isStarted && !match.isFinished,
+                            accentColor = teamColor,
+                            accentColorLight = teamColorLight,
+                            blockedBackground = BlockedGray,
+                            blockedTextColor = BlockedText,
+                            max = team.players.size,
+                            blockedReason = { player ->
+                                when {
+                                    match.starters.any { it.id == player.id } -> "Titular"
+                                    match.expelledPlayers.any { it.id == player.id } -> "Expulsado"
+                                    match.injuredPlayers.any { it.id == player.id } -> "Lesionado"
+                                    else -> ""
+                                }
+                            },
+                            onToggle = { vm.toggleSubstitute(it) }
+                        )
+                    }
+
+                    2 -> {
+                        SelectablePlayersList(
+                            allPlayers = team.players,
+                            selectedPlayers = match.expelledPlayers,
+                            blockedPlayers = match.starters + match.substitutes + match.injuredPlayers,
+                            enabled = !match.isStarted && !match.isFinished,
+                            accentColor = ErrorRed,
+                            accentColorLight = ErrorRedLight,
+                            blockedBackground = BlockedGray,
+                            blockedTextColor = BlockedText,
+                            max = team.players.size,
+                            blockedReason = { player ->
+                                when {
+                                    match.starters.any { it.id == player.id } -> "Titular"
+                                    match.substitutes.any { it.id == player.id } -> "Reserva"
+                                    match.injuredPlayers.any { it.id == player.id } -> "Lesionado"
+                                    else -> ""
+                                }
+                            },
+                            onToggle = { vm.toggleExpelled(it) }
+                        )
+                    }
+
+                    3 -> {
+                        SelectablePlayersList(
+                            allPlayers = team.players,
+                            selectedPlayers = match.injuredPlayers,
+                            blockedPlayers = match.starters + match.substitutes + match.expelledPlayers,
+                            enabled = !match.isStarted && !match.isFinished,
+                            accentColor = InjuryAmber,
+                            accentColorLight = InjuryLight,
+                            blockedBackground = BlockedGray,
+                            blockedTextColor = BlockedText,
+                            max = team.players.size,
+                            blockedReason = { player ->
+                                when {
+                                    match.starters.any { it.id == player.id } -> "Titular"
+                                    match.substitutes.any { it.id == player.id } -> "Reserva"
+                                    match.expelledPlayers.any { it.id == player.id } -> "Expulsado"
+                                    else -> ""
+                                }
+                            },
+                            onToggle = { vm.toggleInjured(it) }
+                        )
+                    }
                 }
             }
         }
     }
+
     if (showLessThanElevenDialog) {
         AlertDialog(
             onDismissRequest = { showLessThanElevenDialog = false },
@@ -319,28 +447,35 @@ fun MatchConfigScreen(
         )
     }
 
-    // ── Diálogo: rival + fecha/hora + duración ────────────────────────────────
     if (showSetupDialog) {
         AlertDialog(
             onDismissRequest = { showSetupDialog = false },
             containerColor = SurfaceColor,
             shape = RoundedCornerShape(20.dp),
             title = {
-                Text("Configurar partido", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextPrimary)
+                Text(
+                    "Configurar partido",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    color = TextPrimary
+                )
             },
             text = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-
-                    // ── Rival ─────────────────────────────────────────────────
                     OutlinedTextField(
                         value = rivalName,
                         onValueChange = { rivalName = it },
                         label = { Text("Rival (opcional)", fontSize = 13.sp) },
                         leadingIcon = {
-                            Icon(Icons.Default.Shield, contentDescription = null, tint = teamColor, modifier = Modifier.size(18.dp))
+                            Icon(
+                                Icons.Default.Shield,
+                                contentDescription = null,
+                                tint = teamColor,
+                                modifier = Modifier.size(18.dp)
+                            )
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(10.dp),
@@ -356,7 +491,6 @@ fun MatchConfigScreen(
                         )
                     )
 
-                    // ── Fecha ─────────────────────────────────────────────────
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -369,8 +503,15 @@ fun MatchConfigScreen(
                             .clickable {
                                 DatePickerDialog(
                                     context,
-                                    { _, y, mo, d -> selYear = y; selMonth = mo; selDay = d; dateChosen = true },
-                                    selYear, selMonth, selDay
+                                    { _, y, mo, d ->
+                                        selYear = y
+                                        selMonth = mo
+                                        selDay = d
+                                        dateChosen = true
+                                    },
+                                    selYear,
+                                    selMonth,
+                                    selDay
                                 ).show()
                             }
                             .padding(horizontal = 14.dp, vertical = 13.dp),
@@ -389,7 +530,9 @@ fun MatchConfigScreen(
                                 text = if (dateChosen) {
                                     val cal = Calendar.getInstance().apply { set(selYear, selMonth, selDay) }
                                     "${DIAS[cal.get(Calendar.DAY_OF_WEEK) - 1]} $selDay ${MESES[selMonth]} $selYear"
-                                } else "Toca para seleccionar",
+                                } else {
+                                    "Toca para seleccionar"
+                                },
                                 fontSize = 14.sp,
                                 fontWeight = if (dateChosen) FontWeight.SemiBold else FontWeight.Normal,
                                 color = if (dateChosen) TextPrimary else TextSecondary
@@ -397,7 +540,6 @@ fun MatchConfigScreen(
                         }
                     }
 
-                    // ── Hora ──────────────────────────────────────────────────
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -410,8 +552,14 @@ fun MatchConfigScreen(
                             .clickable {
                                 TimePickerDialog(
                                     context,
-                                    { _, h, m -> selHour = h; selMinute = m; timeChosen = true },
-                                    selHour, selMinute, true
+                                    { _, h, m ->
+                                        selHour = h
+                                        selMinute = m
+                                        timeChosen = true
+                                    },
+                                    selHour,
+                                    selMinute,
+                                    true
                                 ).show()
                             }
                             .padding(horizontal = 14.dp, vertical = 13.dp),
@@ -427,9 +575,11 @@ fun MatchConfigScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Hora de inicio", fontSize = 11.sp, color = TextSecondary)
                             Text(
-                                text = if (timeChosen)
+                                text = if (timeChosen) {
                                     "${selHour.toString().padStart(2, '0')}:${selMinute.toString().padStart(2, '0')}"
-                                else "Toca para seleccionar",
+                                } else {
+                                    "Toca para seleccionar"
+                                },
                                 fontSize = 14.sp,
                                 fontWeight = if (timeChosen) FontWeight.SemiBold else FontWeight.Normal,
                                 color = if (timeChosen) TextPrimary else TextSecondary
@@ -437,9 +587,13 @@ fun MatchConfigScreen(
                         }
                     }
 
-                    // ── Duración ──────────────────────────────────────────────
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Duración del partido", fontSize = 13.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
+                        Text(
+                            "Duración del partido",
+                            fontSize = 13.sp,
+                            color = TextSecondary,
+                            fontWeight = FontWeight.Medium
+                        )
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -477,7 +631,10 @@ fun MatchConfigScreen(
             },
             confirmButton = {
                 TextButton(
-                    onClick = { showSetupDialog = false; confirmStart() }
+                    onClick = {
+                        showSetupDialog = false
+                        confirmStart()
+                    }
                 ) {
                     Text("Iniciar", color = teamColor, fontWeight = FontWeight.SemiBold)
                 }
@@ -486,81 +643,127 @@ fun MatchConfigScreen(
     }
 }
 
-// ── SelectablePlayersList ─────────────────────────────────────────────────────
 @Composable
 fun SelectablePlayersList(
     allPlayers: List<Player>,
     selectedPlayers: List<Player>,
-    max: Int,
     blockedPlayers: List<Player> = emptyList(),
     enabled: Boolean = true,
     accentColor: Color = Color(0xFF1E6B45),
     accentColorLight: Color = Color(0xFFE8F2EC),
+    blockedBackground: Color = Color(0xFFEAEAEA),
+    blockedTextColor: Color = Color(0xFF8C8C8C),
+    max: Int,
+    blockedReason: (Player) -> String = { "" },
     onToggle: (Player) -> Unit
 ) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         items(allPlayers, key = { it.id }) { player ->
             val isSelected = selectedPlayers.any { it.id == player.id }
-            val isBlocked  = blockedPlayers.any { it.id == player.id }
+            val isBlocked = blockedPlayers.any { it.id == player.id }
 
             val cardBg = when {
-                !enabled   -> Color(0xFFF0F0EE)
-                isBlocked  -> Color(0xFFF5F5F5)
+                !enabled -> Color(0xFFF0F0EE)
+                isBlocked -> blockedBackground
                 isSelected -> accentColorLight
-                else       -> Color(0xFFFFFFFF)
+                else -> SurfaceColor
+            }
+
+            val border = when {
+                isSelected -> accentColor.copy(alpha = 0.35f)
+                else -> BorderColor
             }
 
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        if (isSelected) accentColor.copy(alpha = 0.4f) else Color(0xFFE0E0DC),
-                        RoundedCornerShape(12.dp)
-                    )
-                    .clickable(enabled = enabled && !isBlocked) {
-                        if (isSelected || selectedPlayers.size < max) onToggle(player)
+                    .border(1.dp, border, RoundedCornerShape(12.dp))
+                    .clickable(enabled = enabled && (!isBlocked) && (isSelected || selectedPlayers.size < max)) {
+                        onToggle(player)
                     },
                 shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = cardBg),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(if (isSelected) accentColor else Color(0xFFE0E0DC)),
+                            .background(
+                                when {
+                                    isSelected -> accentColor
+                                    isBlocked -> Color.White
+                                    else -> BorderColor
+                                }
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = player.number.toString(),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isSelected) Color.White else Color(0xFF888888)
+                            color = when {
+                                isSelected -> Color.White
+                                isBlocked -> blockedTextColor
+                                else -> TextSecondary
+                            }
                         )
                     }
+
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = player.name,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 15.sp,
-                        color = if (isBlocked) Color(0xFF888888) else Color(0xFF111111),
-                        modifier = Modifier.weight(1f)
-                    )
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = player.name,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.sp,
+                            color = when {
+                                isBlocked -> blockedTextColor
+                                else -> TextPrimary
+                            }
+                        )
+
+                        val subtitle = when {
+                            !enabled -> "Bloqueado"
+                            isBlocked -> blockedReason(player)
+                            isSelected -> "Seleccionado"
+                            else -> "Disponible"
+                        }
+
+                        if (subtitle.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = subtitle,
+                                fontSize = 12.sp,
+                                color = when {
+                                    isSelected -> accentColor
+                                    isBlocked -> blockedTextColor
+                                    else -> TextSecondary
+                                }
+                            )
+                        }
+                    }
+
                     Text(
                         text = when {
-                            !enabled   -> "Bloqueado"
-                            isBlocked  -> "En otra lista"
+                            !enabled -> "Bloqueado"
+                            isBlocked -> "—"
                             isSelected -> "✓"
-                            else       -> ""
+                            else -> ""
                         },
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
-                        color = if (isSelected) accentColor else Color(0xFF888888)
+                        color = when {
+                            isSelected -> accentColor
+                            isBlocked -> blockedTextColor
+                            else -> TextSecondary
+                        }
                     )
                 }
             }

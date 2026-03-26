@@ -66,6 +66,13 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
     }
 }
 
+val MIGRATION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE matches ADD COLUMN opponentGoals INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE matches ADD COLUMN opponentGoalChances INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 @Database(
     entities = [
         TeamEntity::class,
@@ -75,7 +82,7 @@ val MIGRATION_5_6 = object : Migration(5, 6) {
         MatchEventEntity::class,
         MatchPlayerTimeEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class FootbolyDatabase : RoomDatabase() {
@@ -98,7 +105,8 @@ abstract class FootbolyDatabase : RoomDatabase() {
                         MIGRATION_2_3,
                         MIGRATION_3_4,
                         MIGRATION_4_5,
-                        MIGRATION_5_6
+                        MIGRATION_5_6,
+                        MIGRATION_6_7
                     )
                     .build()
                 INSTANCE = instance

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GpsFixed
+import androidx.compose.material.icons.filled.Healing
 import androidx.compose.material.icons.filled.HighlightOff
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NorthEast
@@ -37,7 +38,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.RadioButtonChecked
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.SouthWest
 import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.filled.TrackChanges
@@ -66,17 +66,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import com.fmarquez.footboly.modelos.MatchEvent
 import com.fmarquez.footboly.modelos.MatchRecord
 import com.fmarquez.footboly.modelos.Player
@@ -85,12 +79,17 @@ import com.fmarquez.footboly.util.hexToColor
 import com.fmarquez.footboly.util.teamColorLight
 import com.fmarquez.footboly.vm.FutbolViewModel
 
-private val BgColor       = Color(0xFFF7F7F5)
-private val SurfaceColor  = Color(0xFFFFFFFF)
-private val TextPrimary   = Color(0xFF111111)
+private val BgColor = Color(0xFFF7F7F5)
+private val SurfaceColor = Color(0xFFFFFFFF)
+private val TextPrimary = Color(0xFF111111)
 private val TextSecondary = Color(0xFF888888)
-private val BorderColor   = Color(0xFFE0E0DC)
-private val ErrorRed      = Color(0xFFD32F2F)
+private val BorderColor = Color(0xFFE0E0DC)
+private val ErrorRed = Color(0xFFD32F2F)
+private val ErrorRedLight = Color(0xFFFFF1F1)
+private val InjuryAmber = Color(0xFFE65100)
+private val InjuryLight = Color(0xFFFFF3E0)
+private val BlockedGray = Color(0xFFEAEAEA)
+private val BlockedText = Color(0xFF8C8C8C)
 
 private data class EventSummaryItem(
     val type: String,
@@ -133,7 +132,7 @@ private fun teamGoals(match: MatchRecord): Int {
 private fun matchHistorySubtitle(match: MatchRecord): String {
     val rival = match.rivalName.ifBlank { "Sin rival" }
     val goals = teamGoals(match)
-    return "${match.teamName} $goals - ? $rival"
+    return "${match.teamName} $goals - ${match.opponentGoals} $rival"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -155,7 +154,7 @@ fun MatchTimelineScreen(
                 title = {
                     Text(
                         text = if (selectedMatch == null) "Partidos" else "Detalle del partido",
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                         fontSize = 18.sp,
                         color = TextPrimary
                     )
@@ -213,7 +212,7 @@ fun MatchTimelineScreen(
             title = {
                 Text(
                     "Totales del partido",
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                     color = TextPrimary
                 )
             },
@@ -241,8 +240,7 @@ fun MatchTimelineScreen(
                                     Box(
                                         modifier = Modifier
                                             .size(40.dp)
-                                            .clip(RoundedCornerShape(10.dp))
-                                            .background(matchColorLight),
+                                            .background(matchColorLight, RoundedCornerShape(10.dp)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
@@ -258,7 +256,7 @@ fun MatchTimelineScreen(
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = item.type,
-                                            fontWeight = FontWeight.SemiBold,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                                             fontSize = 14.sp,
                                             color = TextPrimary
                                         )
@@ -271,15 +269,14 @@ fun MatchTimelineScreen(
 
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(BgColor)
+                                            .background(BgColor, RoundedCornerShape(8.dp))
                                             .border(1.dp, BorderColor, RoundedCornerShape(8.dp))
                                             .padding(horizontal = 10.dp, vertical = 6.dp)
                                     ) {
                                         Text(
                                             text = item.total.toString(),
                                             fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                                             color = TextPrimary
                                         )
                                     }
@@ -309,7 +306,7 @@ fun MatchTimelineScreen(
             title = {
                 Text(
                     text = eventItem.type,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                     color = TextPrimary
                 )
             },
@@ -318,7 +315,7 @@ fun MatchTimelineScreen(
                     Text(
                         text = "Total: ${eventItem.total}",
                         fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                         color = TextSecondary
                     )
 
@@ -343,8 +340,7 @@ fun MatchTimelineScreen(
                                     Box(
                                         modifier = Modifier
                                             .size(30.dp)
-                                            .clip(CircleShape)
-                                            .background(selectedMatchColorLight),
+                                            .background(selectedMatchColorLight, CircleShape),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
@@ -366,15 +362,14 @@ fun MatchTimelineScreen(
 
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(BgColor)
+                                            .background(BgColor, RoundedCornerShape(8.dp))
                                             .border(1.dp, BorderColor, RoundedCornerShape(8.dp))
                                             .padding(horizontal = 8.dp, vertical = 4.dp)
                                     ) {
                                         Text(
                                             text = "×$count",
                                             fontSize = 12.sp,
-                                            fontWeight = FontWeight.SemiBold,
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                                             color = selectedMatchColor
                                         )
                                     }
@@ -397,7 +392,7 @@ fun MatchTimelineScreen(
             onDismissRequest = { matchToDelete = null },
             containerColor = SurfaceColor,
             shape = RoundedCornerShape(20.dp),
-            title = { Text("Eliminar partido", fontWeight = FontWeight.Bold, color = TextPrimary) },
+            title = { Text("Eliminar partido", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = TextPrimary) },
             text = { Text("¿Eliminar este partido guardado?", color = TextSecondary) },
             dismissButton = {
                 TextButton(onClick = { matchToDelete = null }) {
@@ -411,7 +406,7 @@ fun MatchTimelineScreen(
                         matchToDelete = null
                     }
                 ) {
-                    Text("Eliminar", color = ErrorRed, fontWeight = FontWeight.SemiBold)
+                    Text("Eliminar", color = ErrorRed, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
                 }
             }
         )
@@ -423,7 +418,7 @@ fun MatchTimelineScreen(
             onDismissRequest = { vm.dismissEditResultDialog() },
             containerColor = SurfaceColor,
             shape = RoundedCornerShape(20.dp),
-            title = { Text("Cambios realizados", fontWeight = FontWeight.Bold, color = TextPrimary) },
+            title = { Text("Cambios realizados", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = TextPrimary) },
             text = {
                 Column {
                     if (vm.lastEditChanges.isEmpty()) {
@@ -483,17 +478,13 @@ fun MatchHistoryList(
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (match.teamName.isNotBlank()) {
-                            val context = LocalContext.current
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(matchColorLight),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("⚽", fontSize = 22.sp)
-                            }
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .background(matchColorLight, RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("⚽", fontSize = 22.sp)
                         }
 
                         Spacer(modifier = Modifier.width(14.dp))
@@ -501,7 +492,7 @@ fun MatchHistoryList(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = matchHistorySubtitle(match),
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                                 fontSize = 15.sp,
                                 color = TextPrimary
                             )
@@ -554,7 +545,7 @@ fun MatchHistoryList(
                                     text = "Eventos: ${match.events.size}",
                                     fontSize = 12.sp,
                                     color = matchColor,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                                 )
                             }
                         }
@@ -562,8 +553,7 @@ fun MatchHistoryList(
                         Box(
                             modifier = Modifier
                                 .size(8.dp)
-                                .clip(CircleShape)
-                                .background(matchColor)
+                                .background(matchColor, CircleShape)
                         )
 
                         Spacer(modifier = Modifier.width(8.dp))
@@ -616,6 +606,8 @@ fun MatchDetailContent(
 ) {
     val starters = match.starters.sortedBy { it.number }
     val substitutes = match.substitutes.sortedBy { it.number }
+    val expelledPlayers = match.expelledPlayers.sortedBy { it.number }
+    val injuredPlayers = match.injuredPlayers.sortedBy { it.number }
 
     val teamColor = hexToColor(match.shirtColorHex)
     val teamColorLight = teamColorLight(teamColor)
@@ -631,7 +623,7 @@ fun MatchDetailContent(
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text("Partido terminado", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = teamColor)
+                    Text("Partido terminado", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 15.sp, color = teamColor)
                     Spacer(modifier = Modifier.height(8.dp))
                     SummaryRow("Equipo", match.teamName, teamColor)
                     if (match.rivalName.isNotBlank()) {
@@ -662,30 +654,29 @@ fun MatchDetailContent(
             ) {
                 Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Ver todos los eventos", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("Ver todos los eventos", fontSize = 14.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
             }
         }
 
         item {
-            Text("Jugadores del partido", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
+            Text("Jugadores del partido", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
         }
 
         item {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Titulares",
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                     fontSize = 15.sp,
                     color = TextPrimary,
                     modifier = Modifier.weight(1f)
                 )
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(teamColorLight)
+                        .background(teamColorLight, RoundedCornerShape(20.dp))
                         .padding(horizontal = 10.dp, vertical = 3.dp)
                 ) {
-                    Text("${starters.size}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = teamColor)
+                    Text("${starters.size}", fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = teamColor)
                 }
             }
         }
@@ -705,24 +696,61 @@ fun MatchDetailContent(
             }
         }
 
+        if (expelledPlayers.isNotEmpty()) {
+            item {
+                BlockedSectionHeader(
+                    title = "Expulsados",
+                    count = expelledPlayers.size,
+                    accentColor = ErrorRed,
+                    accentLight = ErrorRedLight
+                )
+            }
+
+            items(expelledPlayers, key = { it.id }) { player ->
+                SavedBlockedMatchPlayerRow(
+                    player = player,
+                    reason = "Expulsado",
+                    accentColor = ErrorRed
+                )
+            }
+        }
+
+        if (injuredPlayers.isNotEmpty()) {
+            item {
+                BlockedSectionHeader(
+                    title = "Lesionados",
+                    count = injuredPlayers.size,
+                    accentColor = InjuryAmber,
+                    accentLight = InjuryLight
+                )
+            }
+
+            items(injuredPlayers, key = { it.id }) { player ->
+                SavedBlockedMatchPlayerRow(
+                    player = player,
+                    reason = "Lesionado",
+                    accentColor = InjuryAmber
+                )
+            }
+        }
+
         item { Spacer(modifier = Modifier.height(8.dp)) }
 
         item {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "Reservas",
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                     fontSize = 15.sp,
                     color = TextPrimary,
                     modifier = Modifier.weight(1f)
                 )
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xFFF5F5F5))
+                        .background(Color(0xFFF5F5F5), RoundedCornerShape(20.dp))
                         .padding(horizontal = 10.dp, vertical = 3.dp)
                 ) {
-                    Text("${substitutes.size}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                    Text("${substitutes.size}", fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = TextSecondary)
                 }
             }
         }
@@ -743,7 +771,7 @@ fun MatchDetailContent(
         }
 
         item {
-            Text("Línea de tiempo", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
+            Text("Línea de tiempo", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
         }
 
         if (match.events.isEmpty()) {
@@ -791,14 +819,13 @@ private fun SavedMatchPlayerRow(
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .clip(CircleShape)
-                    .background(if (role == "Titular") teamColorLight else Color(0xFFF5F5F5)),
+                    .background(if (role == "Titular") teamColorLight else Color(0xFFF5F5F5), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = player.number.toString(),
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                     color = if (role == "Titular") teamColor else TextSecondary
                 )
             }
@@ -806,7 +833,7 @@ private fun SavedMatchPlayerRow(
             Spacer(modifier = Modifier.width(12.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(player.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
+                Text(player.name, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
                 Text("$role · N° ${player.number} · $playedTime", fontSize = 12.sp, color = TextSecondary)
             }
 
@@ -825,6 +852,103 @@ private fun SavedMatchPlayerRow(
 }
 
 @Composable
+private fun BlockedSectionHeader(
+    title: String,
+    count: Int,
+    accentColor: Color,
+    accentLight: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(accentLight, RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            fontSize = 13.sp,
+            color = accentColor,
+            modifier = Modifier.weight(1f)
+        )
+
+        Box(
+            modifier = Modifier
+                .background(Color.White.copy(alpha = 0.75f), RoundedCornerShape(20.dp))
+                .padding(horizontal = 10.dp, vertical = 3.dp)
+        ) {
+            Text(
+                text = count.toString(),
+                fontSize = 11.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                color = accentColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun SavedBlockedMatchPlayerRow(
+    player: Player,
+    reason: String,
+    accentColor: Color
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, BorderColor, RoundedCornerShape(12.dp)),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = BlockedGray),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .background(Color.White, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = player.number.toString(),
+                    fontSize = 13.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    color = BlockedText
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = player.name,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    color = BlockedText
+                )
+                Text(
+                    text = "Bloqueado · $reason · N° ${player.number}",
+                    fontSize = 12.sp,
+                    color = accentColor
+                )
+            }
+
+            Icon(
+                imageVector = if (reason == "Expulsado") Icons.Default.Warning else Icons.Default.Healing,
+                contentDescription = reason,
+                tint = accentColor,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+@Composable
 private fun SummaryRow(label: String, value: String, teamColor: Color) {
     Row(
         modifier = Modifier
@@ -833,7 +957,7 @@ private fun SummaryRow(label: String, value: String, teamColor: Color) {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(label, fontSize = 13.sp, color = teamColor.copy(alpha = 0.7f))
-        Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = teamColor)
+        Text(value, fontSize = 13.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = teamColor)
     }
 }
 
@@ -855,7 +979,7 @@ private fun SummaryRowWithIcon(label: String, value: String, teamColor: Color) {
                 modifier = Modifier.size(13.dp)
             )
             Spacer(modifier = Modifier.width(4.dp))
-            Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = teamColor)
+            Text(value, fontSize = 13.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = teamColor)
         }
     }
 }
@@ -888,8 +1012,7 @@ fun MatchEventReportCard(
             Box(
                 modifier = Modifier
                     .size(44.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(accentColorLight),
+                    .background(accentColorLight, RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -905,7 +1028,7 @@ fun MatchEventReportCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = if (isSwap) "Cambio" else title,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                     fontSize = 14.sp,
                     color = TextPrimary
                 )
@@ -922,8 +1045,7 @@ fun MatchEventReportCard(
 
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(BgColor)
+                    .background(BgColor, RoundedCornerShape(8.dp))
                     .border(1.dp, BorderColor, RoundedCornerShape(8.dp))
                     .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
@@ -934,7 +1056,7 @@ fun MatchEventReportCard(
                         timeLabel.ifBlank { "00:00" },
                         fontSize = 12.sp,
                         color = TextSecondary,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                     )
                 }
             }

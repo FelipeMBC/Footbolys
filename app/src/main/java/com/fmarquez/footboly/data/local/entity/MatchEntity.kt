@@ -16,6 +16,8 @@ data class MatchEntity(
     val shirtColorHex: String = "#1E6B45",
     val rivalName: String = "",
     val matchDateLabel: String = "",
+    val opponentGoals: Int = 0,
+    val opponentGoalChances: Int = 0,
     val isStarted: Boolean = false,
     val isFinished: Boolean = false,
     val totalSeconds: Int = 60,

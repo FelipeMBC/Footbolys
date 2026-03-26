@@ -22,7 +22,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Downloading
+import androidx.compose.material.icons.filled.Healing
 import androidx.compose.material.icons.filled.StackedLineChart
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -67,6 +69,11 @@ private val TextPrimary   = Color(0xFF111111)
 private val TextSecondary = Color(0xFF888888)
 private val BorderColor   = Color(0xFFE0E0DC)
 private val ErrorRed      = Color(0xFFD32F2F)
+private val ErrorRedLight = Color(0xFFFFF1F1)
+private val InjuryAmber   = Color(0xFFE65100)
+private val InjuryLight   = Color(0xFFFFF3E0)
+private val BlockedGray   = Color(0xFFEAEAEA)
+private val BlockedText   = Color(0xFF8C8C8C)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,8 +87,9 @@ fun ReporteScreen(
 
     val displayedStarters = vm.getCurrentStarters(match)
     val displayedSubstitutes = vm.getCurrentSubstitutes(match)
+    val expelledPlayers = match.expelledPlayers.sortedBy { it.number }
+    val injuredPlayers = match.injuredPlayers.sortedBy { it.number }
 
-    // ticker simple para recomponer cada segundo mientras el partido está en curso
     val liveTick by produceState(initialValue = 0, key1 = match.isStarted, key2 = match.isFinished) {
         while (match.isStarted && !match.isFinished) {
             delay(1000)
@@ -89,7 +97,7 @@ fun ReporteScreen(
         }
     }
 
-    val teamColor      = hexToColor(team.shirtColorHex)
+    val teamColor = hexToColor(team.shirtColorHex)
     val teamColorLight = teamColorLight(teamColor)
 
     var showSwapDialog by remember { mutableStateOf(false) }
@@ -227,6 +235,48 @@ fun ReporteScreen(
                         )
                         HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
                     }
+
+                    if (expelledPlayers.isNotEmpty()) {
+                        item {
+                            BlockHeader(
+                                title = "Expulsados",
+                                count = expelledPlayers.size,
+                                accentColor = ErrorRed,
+                                accentLight = ErrorRedLight
+                            )
+                        }
+
+                        items(items = expelledPlayers, key = { player -> player.id }) { player ->
+                            BlockedPlayerRowItem(
+                                player = player,
+                                reason = "Expulsado",
+                                accentColor = ErrorRed,
+                                accentLight = ErrorRedLight
+                            )
+                            HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
+                        }
+                    }
+
+                    if (injuredPlayers.isNotEmpty()) {
+                        item {
+                            BlockHeader(
+                                title = "Lesionados",
+                                count = injuredPlayers.size,
+                                accentColor = InjuryAmber,
+                                accentLight = InjuryLight
+                            )
+                        }
+
+                        items(items = injuredPlayers, key = { player -> player.id }) { player ->
+                            BlockedPlayerRowItem(
+                                player = player,
+                                reason = "Lesionado",
+                                accentColor = InjuryAmber,
+                                accentLight = InjuryLight
+                            )
+                            HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
+                        }
+                    }
                 }
             }
 
@@ -349,6 +399,98 @@ fun ReporteScreen(
 }
 
 @Composable
+private fun BlockHeader(
+    title: String,
+    count: Int,
+    accentColor: Color,
+    accentLight: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(accentLight)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            color = accentColor,
+            modifier = Modifier.weight(1f)
+        )
+
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.White.copy(alpha = 0.75f))
+                .padding(horizontal = 10.dp, vertical = 3.dp)
+        ) {
+            Text(
+                text = count.toString(),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = accentColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun BlockedPlayerRowItem(
+    player: Player,
+    reason: String,
+    accentColor: Color,
+    accentLight: Color
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(BlockedGray)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(Color.White),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = player.number.toString(),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = BlockedText
+            )
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = player.name,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                color = BlockedText
+            )
+            Text(
+                text = "Bloqueado · $reason · N° ${player.number}",
+                fontSize = 12.sp,
+                color = accentColor
+            )
+        }
+
+        Icon(
+            imageVector = if (reason == "Expulsado") Icons.Default.Warning else Icons.Default.Healing,
+            contentDescription = reason,
+            tint = accentColor,
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+@Composable
 private fun PlayerRowItem(
     player: Player,
     role: String,
@@ -360,9 +502,6 @@ private fun PlayerRowItem(
     onStats: () -> Unit = {},
     onSwap: () -> Unit = {}
 ) {
-    val TextPrimary   = Color(0xFF111111)
-    val TextSecondary = Color(0xFF888888)
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -387,9 +526,14 @@ private fun PlayerRowItem(
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(player.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
             Text(
-                "$role · N° ${player.number} · $playedTime",
+                text = player.name,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                color = TextPrimary
+            )
+            Text(
+                text = "$role · N° ${player.number} · $playedTime",
                 fontSize = 12.sp,
                 color = TextSecondary
             )

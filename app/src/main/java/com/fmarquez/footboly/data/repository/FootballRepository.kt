@@ -12,7 +12,6 @@ import com.fmarquez.footboly.data.mapper.toEntity
 import com.fmarquez.footboly.datos.mockTeams
 import com.fmarquez.footboly.dialog.TempPlayerInput
 import com.fmarquez.footboly.modelos.MatchEvent
-import com.fmarquez.footboly.modelos.MatchPlayerTime
 import com.fmarquez.footboly.modelos.MatchRecord
 import com.fmarquez.footboly.modelos.Team
 import kotlinx.coroutines.flow.Flow
@@ -202,26 +201,59 @@ class FootballRepository(
 
         val players = buildList {
             addAll(
-                match.starters.sortedBy { it.number }.map { player ->
-                    MatchPlayerEntity(
-                        matchId = match.id,
-                        playerId = player.id,
-                        role = "STARTER",
-                        playerNameSnapshot = player.name,
-                        playerNumberSnapshot = player.number
-                    )
-                }
+                match.starters
+                    .sortedBy { it.number }
+                    .map { player ->
+                        MatchPlayerEntity(
+                            matchId = match.id,
+                            playerId = player.id,
+                            role = "STARTER",
+                            playerNameSnapshot = player.name,
+                            playerNumberSnapshot = player.number
+                        )
+                    }
             )
+
             addAll(
-                match.substitutes.sortedBy { it.number }.map { player ->
-                    MatchPlayerEntity(
-                        matchId = match.id,
-                        playerId = player.id,
-                        role = "SUBSTITUTE",
-                        playerNameSnapshot = player.name,
-                        playerNumberSnapshot = player.number
-                    )
-                }
+                match.substitutes
+                    .sortedBy { it.number }
+                    .map { player ->
+                        MatchPlayerEntity(
+                            matchId = match.id,
+                            playerId = player.id,
+                            role = "SUBSTITUTE",
+                            playerNameSnapshot = player.name,
+                            playerNumberSnapshot = player.number
+                        )
+                    }
+            )
+
+            addAll(
+                match.expelledPlayers
+                    .sortedBy { it.number }
+                    .map { player ->
+                        MatchPlayerEntity(
+                            matchId = match.id,
+                            playerId = player.id,
+                            role = "EXPELLED",
+                            playerNameSnapshot = player.name,
+                            playerNumberSnapshot = player.number
+                        )
+                    }
+            )
+
+            addAll(
+                match.injuredPlayers
+                    .sortedBy { it.number }
+                    .map { player ->
+                        MatchPlayerEntity(
+                            matchId = match.id,
+                            playerId = player.id,
+                            role = "INJURED",
+                            playerNameSnapshot = player.name,
+                            playerNumberSnapshot = player.number
+                        )
+                    }
             )
         }
 

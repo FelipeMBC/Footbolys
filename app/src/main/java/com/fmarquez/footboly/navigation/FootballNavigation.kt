@@ -4,6 +4,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import com.fmarquez.footboly.screens.MatchConfigScreen
+import com.fmarquez.footboly.screens.MatchLiveScreen
 import com.fmarquez.footboly.screens.MatchTimelineScreen
 import com.fmarquez.footboly.screens.PlayerStatsScreen
 import com.fmarquez.footboly.screens.PlayersMasterScreen
@@ -15,6 +16,7 @@ enum class Screen(val route: String) {
     TEAM_SELECTION("team_selection"),
     PLAYERS_MASTER("players_master"),
     MATCH_CONFIG("match_config"),
+    MATCH_LIVE("match_live"),
     PLAYER_STATS("player_stats"),
     MATCH_TIMELINE("match_timeline"),
     REPORT_SCREEN("report_screen"),
@@ -40,6 +42,13 @@ fun NavGraphBuilder.setupFootballNavigation(
 
     composable(route = Screen.MATCH_CONFIG.route) {
         MatchConfigScreen(
+            vm = viewModel,
+            navHostController = navHostController
+        )
+    }
+
+    composable(route = Screen.MATCH_LIVE.route) {
+        MatchLiveScreen(
             vm = viewModel,
             navHostController = navHostController
         )

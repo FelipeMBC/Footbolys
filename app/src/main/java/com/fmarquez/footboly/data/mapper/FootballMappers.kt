@@ -54,6 +54,30 @@ fun MatchWithDetails.toDomain(): MatchRecord {
         }
         .toMutableList()
 
+    val expelledPlayers = participants
+        .filter { it.role == "EXPELLED" }
+        .sortedBy { it.playerNumberSnapshot }
+        .map {
+            Player(
+                id = it.playerId,
+                name = it.playerNameSnapshot,
+                number = it.playerNumberSnapshot
+            )
+        }
+        .toMutableList()
+
+    val injuredPlayers = participants
+        .filter { it.role == "INJURED" }
+        .sortedBy { it.playerNumberSnapshot }
+        .map {
+            Player(
+                id = it.playerId,
+                name = it.playerNameSnapshot,
+                number = it.playerNumberSnapshot
+            )
+        }
+        .toMutableList()
+
     val mappedEvents = events
         .sortedBy { it.id }
         .map {
@@ -88,9 +112,13 @@ fun MatchWithDetails.toDomain(): MatchRecord {
         matchDateLabel = match.matchDateLabel,
         starters = starters,
         substitutes = substitutes,
+        expelledPlayers = expelledPlayers,
+        injuredPlayers = injuredPlayers,
         statsByPlayerId = mutableMapOf(),
         events = mappedEvents,
         playerTimes = mappedPlayerTimes,
+        opponentGoals = match.opponentGoals,
+        opponentGoalChances = match.opponentGoalChances,
         isStarted = match.isStarted,
         isFinished = match.isFinished,
         totalSeconds = match.totalSeconds,
@@ -109,6 +137,8 @@ fun MatchRecord.toEntity(): MatchEntity {
         shirtColorHex = shirtColorHex,
         rivalName = rivalName,
         matchDateLabel = matchDateLabel,
+        opponentGoals = opponentGoals,
+        opponentGoalChances = opponentGoalChances,
         isStarted = isStarted,
         isFinished = isFinished,
         totalSeconds = totalSeconds,
