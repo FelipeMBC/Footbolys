@@ -125,7 +125,7 @@ private fun buildEventSummary(events: List<MatchEvent>): List<EventSummaryItem> 
 
 private fun teamGoals(match: MatchRecord): Int {
     return match.events
-        .filter { it.type == "Gol" }
+        .filter { it.type == "Gol a Favor" }
         .sumOf { parseEventCount(it.detail) }
 }
 
@@ -1073,24 +1073,32 @@ fun formatEventTitle(type: String, detail: String): String {
 fun eventIcon(type: String, detail: String = ""): ImageVector {
     return when {
         type == "Cambio" || detail.startsWith("Entra ") -> Icons.Default.TrackChanges
+
         type.startsWith("Gol") -> Icons.Default.SportsSoccer
-        type.startsWith("Asistencia") -> Icons.Default.Send
-        type.startsWith("Amarilla") -> Icons.Default.Warning
-        type.startsWith("Roja") -> Icons.Default.HighlightOff
-        type.startsWith("Disparos al Arco") -> Icons.Default.GpsFixed
-        type.startsWith("Ocasiones de Gol") -> Icons.Default.TrackChanges
-        type.startsWith("Pelotas Perdidas") -> Icons.Default.Clear
-        type.startsWith("Pelotas Recuperadas") -> Icons.Default.Security
-        type.startsWith("Centros Buenos") -> Icons.Default.Send
-        type.startsWith("Centros Malos") -> Icons.Default.Close
+        type.startsWith("Tiro al Arco") -> Icons.Default.GpsFixed
+        type.startsWith("Participación de Gol") -> Icons.Default.Send
+        type.startsWith("Remate 1/2") -> Icons.Default.TrackChanges
+
+        type.startsWith("Balón Recogido") -> Icons.Default.Security
+        type.startsWith("Pases Buenos") -> Icons.Default.Send
+        type.startsWith("Pases Malos") -> Icons.Default.Close
+        type.startsWith("Centros +") -> Icons.Default.NorthEast
+        type.startsWith("Centros -") -> Icons.Default.SouthWest
+        type.startsWith("Rechazos +") -> Icons.Default.CheckCircle
+        type.startsWith("Rechazos -") -> Icons.Default.Cancel
+
         type.startsWith("Falta a Favor") -> Icons.Default.CheckCircle
         type.startsWith("Falta en Contra") -> Icons.Default.Cancel
-        type.startsWith("Corner a Favor") -> Icons.Default.NorthEast
-        type.startsWith("Corner en Contra") -> Icons.Default.SouthWest
+        type.startsWith("Corner +") -> Icons.Default.NorthEast
+        type.startsWith("Corner -") -> Icons.Default.SouthWest
         type.startsWith("Tiro Libre a Favor") -> Icons.Default.RadioButtonChecked
         type.startsWith("Tiro Libre en Contra") -> Icons.Default.Cancel
-        type.startsWith("Tiro Libre Lateral a Favor") -> Icons.Default.ArrowForward
-        type.startsWith("Tiro Libre Lateral en Contra") -> Icons.Default.ArrowBack
+        type.startsWith("Penal a Favor") -> Icons.Default.SportsSoccer
+        type.startsWith("Penal en Contra") -> Icons.Default.HighlightOff
+
+        type.startsWith("Amarilla") -> Icons.Default.Warning
+        type.startsWith("Roja") -> Icons.Default.HighlightOff
+
         else -> Icons.Default.SportsSoccer
     }
 }

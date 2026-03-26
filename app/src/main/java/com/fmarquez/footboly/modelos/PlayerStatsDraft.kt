@@ -3,22 +3,38 @@ package com.fmarquez.footboly.modelos
 data class PlayerStatsDraft(
     val playerId: Int,
     val matchId: Int,
-    var gol: Int = 0,
-    var asistencia: Int = 0,
+
+    // Bloque 1
+    var golFavor: Int = 0,
+    var golContra: Int = 0,
+    var tiroAlArcoPositivo: Int = 0,
+    var tiroAlArcoNegativo: Int = 0,
+    var participacionGolFavor: Int = 0,
+    var participacionGolContra: Int = 0,
+    var remate12Positivo: Int = 0,
+    var remate12Negativo: Int = 0,
+
+    // Bloque 2
+    var balonRecogidoFavor: Int = 0,
+    var balonRecogidoContra: Int = 0,
+    var pasesBuenos: Int = 0,
+    var pasesMalos: Int = 0,
+    var centrosPositivos: Int = 0,
+    var centrosNegativos: Int = 0,
+    var rechazosPositivos: Int = 0,
+    var rechazosNegativos: Int = 0,
+
+    // Bloque 3
+    var faltaFavor: Int = 0,
+    var faltaContra: Int = 0,
+    var cornerPositivo: Int = 0,
+    var cornerNegativo: Int = 0,
+    var tiroLibreFavor: Int = 0,
+    var tiroLibreContra: Int = 0,
+    var penalFavor: Int = 0,
+    var penalContra: Int = 0,
+
+    // Se mantienen para después
     var amarilla: Int = 0,
-    var roja: Int = 0,
-    var disparosAlArco: Int = 0,
-    var ocasionesDeGol: Int = 0,
-    var pelotasPerdidas: Int = 0,
-    var pelotasRecuperadas: Int = 0,
-    var centrosBuenos: Int = 0,
-    var centrosMalos: Int = 0,
-    var faltaAFavor: Int = 0,
-    var faltaEnContra: Int = 0,
-    var cornerAFavor: Int = 0,
-    var cornerEnContra: Int = 0,
-    var tiroLibreAFavor: Int = 0,
-    var tiroLibreEnContra: Int = 0,
-    var tiroLibreLateralAFavor: Int = 0,
-    var tiroLibreLateralEnContra: Int = 0
+    var roja: Int = 0
 )

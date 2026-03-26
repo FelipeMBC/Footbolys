@@ -87,7 +87,7 @@ private fun parseEventCount(detail: String): Int {
 
 private fun ownGoals(events: List<MatchEvent>): Int {
     return events
-        .filter { it.type == "Gol" }
+        .filter { it.type == "Gol a Favor" }
         .sumOf { parseEventCount(it.detail) }
 }
 

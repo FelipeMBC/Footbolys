@@ -269,24 +269,35 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         playerEvents.forEach { event ->
             val count = parseEventCount(event)
             draft = when (event.type) {
-                "Gol" -> draft.copy(gol = draft.gol + count)
-                "Asistencia" -> draft.copy(asistencia = draft.asistencia + count)
+                "Gol a Favor" -> draft.copy(golFavor = draft.golFavor + count)
+                "Gol en Contra" -> draft.copy(golContra = draft.golContra + count)
+                "Tiro al Arco +" -> draft.copy(tiroAlArcoPositivo = draft.tiroAlArcoPositivo + count)
+                "Tiro al Arco -" -> draft.copy(tiroAlArcoNegativo = draft.tiroAlArcoNegativo + count)
+                "Participación de Gol a Favor" -> draft.copy(participacionGolFavor = draft.participacionGolFavor + count)
+                "Participación de Gol en Contra" -> draft.copy(participacionGolContra = draft.participacionGolContra + count)
+                "Remate 1/2 +" -> draft.copy(remate12Positivo = draft.remate12Positivo + count)
+                "Remate 1/2 -" -> draft.copy(remate12Negativo = draft.remate12Negativo + count)
+
+                "Balón Recogido a Favor" -> draft.copy(balonRecogidoFavor = draft.balonRecogidoFavor + count)
+                "Balón Recogido en Contra" -> draft.copy(balonRecogidoContra = draft.balonRecogidoContra + count)
+                "Pases Buenos" -> draft.copy(pasesBuenos = draft.pasesBuenos + count)
+                "Pases Malos" -> draft.copy(pasesMalos = draft.pasesMalos + count)
+                "Centros +" -> draft.copy(centrosPositivos = draft.centrosPositivos + count)
+                "Centros -" -> draft.copy(centrosNegativos = draft.centrosNegativos + count)
+                "Rechazos +" -> draft.copy(rechazosPositivos = draft.rechazosPositivos + count)
+                "Rechazos -" -> draft.copy(rechazosNegativos = draft.rechazosNegativos + count)
+
+                "Falta a Favor" -> draft.copy(faltaFavor = draft.faltaFavor + count)
+                "Falta en Contra" -> draft.copy(faltaContra = draft.faltaContra + count)
+                "Corner +" -> draft.copy(cornerPositivo = draft.cornerPositivo + count)
+                "Corner -" -> draft.copy(cornerNegativo = draft.cornerNegativo + count)
+                "Tiro Libre a Favor" -> draft.copy(tiroLibreFavor = draft.tiroLibreFavor + count)
+                "Tiro Libre en Contra" -> draft.copy(tiroLibreContra = draft.tiroLibreContra + count)
+                "Penal a Favor" -> draft.copy(penalFavor = draft.penalFavor + count)
+                "Penal en Contra" -> draft.copy(penalContra = draft.penalContra + count)
+
                 "Amarilla" -> draft.copy(amarilla = draft.amarilla + count)
                 "Roja" -> draft.copy(roja = draft.roja + count)
-                "Disparos al Arco" -> draft.copy(disparosAlArco = draft.disparosAlArco + count)
-                "Ocasiones de Gol" -> draft.copy(ocasionesDeGol = draft.ocasionesDeGol + count)
-                "Pelotas Perdidas" -> draft.copy(pelotasPerdidas = draft.pelotasPerdidas + count)
-                "Pelotas Recuperadas" -> draft.copy(pelotasRecuperadas = draft.pelotasRecuperadas + count)
-                "Centros Buenos" -> draft.copy(centrosBuenos = draft.centrosBuenos + count)
-                "Centros Malos" -> draft.copy(centrosMalos = draft.centrosMalos + count)
-                "Falta a Favor" -> draft.copy(faltaAFavor = draft.faltaAFavor + count)
-                "Falta en Contra" -> draft.copy(faltaEnContra = draft.faltaEnContra + count)
-                "Corner a Favor" -> draft.copy(cornerAFavor = draft.cornerAFavor + count)
-                "Corner en Contra" -> draft.copy(cornerEnContra = draft.cornerEnContra + count)
-                "Tiro Libre a Favor" -> draft.copy(tiroLibreAFavor = draft.tiroLibreAFavor + count)
-                "Tiro Libre en Contra" -> draft.copy(tiroLibreEnContra = draft.tiroLibreEnContra + count)
-                "Tiro Libre Lateral a Favor" -> draft.copy(tiroLibreLateralAFavor = draft.tiroLibreLateralAFavor + count)
-                "Tiro Libre Lateral en Contra" -> draft.copy(tiroLibreLateralEnContra = draft.tiroLibreLateralEnContra + count)
                 else -> draft
             }
         }
@@ -356,24 +367,35 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
             )
         }
 
-        addIfNeeded("Gol", draft.gol)
-        addIfNeeded("Asistencia", draft.asistencia)
+        addIfNeeded("Gol a Favor", draft.golFavor)
+        addIfNeeded("Gol en Contra", draft.golContra)
+        addIfNeeded("Tiro al Arco +", draft.tiroAlArcoPositivo)
+        addIfNeeded("Tiro al Arco -", draft.tiroAlArcoNegativo)
+        addIfNeeded("Participación de Gol a Favor", draft.participacionGolFavor)
+        addIfNeeded("Participación de Gol en Contra", draft.participacionGolContra)
+        addIfNeeded("Remate 1/2 +", draft.remate12Positivo)
+        addIfNeeded("Remate 1/2 -", draft.remate12Negativo)
+
+        addIfNeeded("Balón Recogido a Favor", draft.balonRecogidoFavor)
+        addIfNeeded("Balón Recogido en Contra", draft.balonRecogidoContra)
+        addIfNeeded("Pases Buenos", draft.pasesBuenos)
+        addIfNeeded("Pases Malos", draft.pasesMalos)
+        addIfNeeded("Centros +", draft.centrosPositivos)
+        addIfNeeded("Centros -", draft.centrosNegativos)
+        addIfNeeded("Rechazos +", draft.rechazosPositivos)
+        addIfNeeded("Rechazos -", draft.rechazosNegativos)
+
+        addIfNeeded("Falta a Favor", draft.faltaFavor)
+        addIfNeeded("Falta en Contra", draft.faltaContra)
+        addIfNeeded("Corner +", draft.cornerPositivo)
+        addIfNeeded("Corner -", draft.cornerNegativo)
+        addIfNeeded("Tiro Libre a Favor", draft.tiroLibreFavor)
+        addIfNeeded("Tiro Libre en Contra", draft.tiroLibreContra)
+        addIfNeeded("Penal a Favor", draft.penalFavor)
+        addIfNeeded("Penal en Contra", draft.penalContra)
+
         addIfNeeded("Amarilla", draft.amarilla)
         addIfNeeded("Roja", draft.roja)
-        addIfNeeded("Disparos al Arco", draft.disparosAlArco)
-        addIfNeeded("Ocasiones de Gol", draft.ocasionesDeGol)
-        addIfNeeded("Pelotas Perdidas", draft.pelotasPerdidas)
-        addIfNeeded("Pelotas Recuperadas", draft.pelotasRecuperadas)
-        addIfNeeded("Centros Buenos", draft.centrosBuenos)
-        addIfNeeded("Centros Malos", draft.centrosMalos)
-        addIfNeeded("Falta a Favor", draft.faltaAFavor)
-        addIfNeeded("Falta en Contra", draft.faltaEnContra)
-        addIfNeeded("Corner a Favor", draft.cornerAFavor)
-        addIfNeeded("Corner en Contra", draft.cornerEnContra)
-        addIfNeeded("Tiro Libre a Favor", draft.tiroLibreAFavor)
-        addIfNeeded("Tiro Libre en Contra", draft.tiroLibreEnContra)
-        addIfNeeded("Tiro Libre Lateral a Favor", draft.tiroLibreLateralAFavor)
-        addIfNeeded("Tiro Libre Lateral en Contra", draft.tiroLibreLateralEnContra)
 
         return result
     }
@@ -389,24 +411,35 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
             if (oldValue != newValue) changes.add("$playerName · $label: $oldValue → $newValue")
         }
 
-        compare("Gol", original.gol, updated.gol)
-        compare("Asistencia", original.asistencia, updated.asistencia)
+        compare("Gol a Favor", original.golFavor, updated.golFavor)
+        compare("Gol en Contra", original.golContra, updated.golContra)
+        compare("Tiro al Arco +", original.tiroAlArcoPositivo, updated.tiroAlArcoPositivo)
+        compare("Tiro al Arco -", original.tiroAlArcoNegativo, updated.tiroAlArcoNegativo)
+        compare("Participación de Gol a Favor", original.participacionGolFavor, updated.participacionGolFavor)
+        compare("Participación de Gol en Contra", original.participacionGolContra, updated.participacionGolContra)
+        compare("Remate 1/2 +", original.remate12Positivo, updated.remate12Positivo)
+        compare("Remate 1/2 -", original.remate12Negativo, updated.remate12Negativo)
+
+        compare("Balón Recogido a Favor", original.balonRecogidoFavor, updated.balonRecogidoFavor)
+        compare("Balón Recogido en Contra", original.balonRecogidoContra, updated.balonRecogidoContra)
+        compare("Pases Buenos", original.pasesBuenos, updated.pasesBuenos)
+        compare("Pases Malos", original.pasesMalos, updated.pasesMalos)
+        compare("Centros +", original.centrosPositivos, updated.centrosPositivos)
+        compare("Centros -", original.centrosNegativos, updated.centrosNegativos)
+        compare("Rechazos +", original.rechazosPositivos, updated.rechazosPositivos)
+        compare("Rechazos -", original.rechazosNegativos, updated.rechazosNegativos)
+
+        compare("Falta a Favor", original.faltaFavor, updated.faltaFavor)
+        compare("Falta en Contra", original.faltaContra, updated.faltaContra)
+        compare("Corner +", original.cornerPositivo, updated.cornerPositivo)
+        compare("Corner -", original.cornerNegativo, updated.cornerNegativo)
+        compare("Tiro Libre a Favor", original.tiroLibreFavor, updated.tiroLibreFavor)
+        compare("Tiro Libre en Contra", original.tiroLibreContra, updated.tiroLibreContra)
+        compare("Penal a Favor", original.penalFavor, updated.penalFavor)
+        compare("Penal en Contra", original.penalContra, updated.penalContra)
+
         compare("Amarilla", original.amarilla, updated.amarilla)
         compare("Roja", original.roja, updated.roja)
-        compare("Disparos al Arco", original.disparosAlArco, updated.disparosAlArco)
-        compare("Ocasiones de Gol", original.ocasionesDeGol, updated.ocasionesDeGol)
-        compare("Pelotas Perdidas", original.pelotasPerdidas, updated.pelotasPerdidas)
-        compare("Pelotas Recuperadas", original.pelotasRecuperadas, updated.pelotasRecuperadas)
-        compare("Centros Buenos", original.centrosBuenos, updated.centrosBuenos)
-        compare("Centros Malos", original.centrosMalos, updated.centrosMalos)
-        compare("Falta a Favor", original.faltaAFavor, updated.faltaAFavor)
-        compare("Falta en Contra", original.faltaEnContra, updated.faltaEnContra)
-        compare("Corner a Favor", original.cornerAFavor, updated.cornerAFavor)
-        compare("Corner en Contra", original.cornerEnContra, updated.cornerEnContra)
-        compare("Tiro Libre a Favor", original.tiroLibreAFavor, updated.tiroLibreAFavor)
-        compare("Tiro Libre en Contra", original.tiroLibreEnContra, updated.tiroLibreEnContra)
-        compare("Tiro Libre Lateral a Favor", original.tiroLibreLateralAFavor, updated.tiroLibreLateralAFavor)
-        compare("Tiro Libre Lateral en Contra", original.tiroLibreLateralEnContra, updated.tiroLibreLateralEnContra)
 
         return changes
     }
@@ -449,74 +482,110 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         return changes
     }
 
-    fun savePlayerStatsDraftAsEvents(playerId: Int): List<String> {
-        if (editingFinishedMatch != null) return saveEditedFinishedMatch(playerId)
-
-        val match = currentMatch ?: return emptyList()
-        val player = getSelectedPlayer() ?: return emptyList()
-
-        val key = statsDraftKey(match.id, playerId)
-        val draft = playerStatsDrafts[key] ?: return emptyList()
-
-        val timestamp = getElapsedMatchTimeLabel()
+    private fun getCurrentMatchMinute(match: MatchRecord): Int {
         val elapsed = (match.totalSeconds - match.remainingSeconds).coerceAtLeast(0)
-        val minute = elapsed / 60
+        return (elapsed / 60).coerceAtLeast(0)
+    }
+
+    private fun formatMatchClock(match: MatchRecord): String {
+        val elapsed = (match.totalSeconds - match.remainingSeconds).coerceAtLeast(0)
+        val minutes = elapsed / 60
+        val seconds = elapsed % 60
+        return "%02d:%02d".format(minutes, seconds)
+    }
+
+    fun clearPlayerStatsDraft(playerId: Int) {
+        val match = getActiveMatchForStats() ?: return
+        val emptyDraft = PlayerStatsDraft(
+            playerId = playerId,
+            matchId = match.id
+        )
+        updatePlayerStatsDraft(emptyDraft)
+    }
+
+    fun savePlayerStatsDraftAsEvents(playerId: Int): List<String> {
+        val match = getActiveMatchForStats() ?: return emptyList()
+        val draft = getOrCreatePlayerStatsDraft(playerId)
+        val player = (match.starters + match.substitutes + match.expelledPlayers + match.injuredPlayers)
+            .distinctBy { it.id }
+            .firstOrNull { it.id == playerId }
+            ?: return emptyList()
+
+        val minute = getCurrentMatchMinute(match)
+        val timestamp = formatMatchClock(match)
 
         val newEvents = mutableListOf<MatchEvent>()
-        val savedLines = mutableListOf<String>()
+        val changes = mutableListOf<String>()
 
-        fun register(type: String, count: Int) {
-            if (count > 0) {
-                newEvents.add(
-                    MatchEvent(
-                        minute = minute,
-                        type = type,
-                        playerId = player.id,
-                        playerName = player.name,
-                        detail = "$type: $count",
-                        timestampLabel = timestamp
-                    )
+        fun addEvent(type: String, count: Int) {
+            if (count <= 0) return
+
+            newEvents.add(
+                MatchEvent(
+                    minute = minute,
+                    type = type,
+                    playerId = player.id,
+                    playerName = player.name,
+                    detail = "Cantidad: $count",
+                    timestampLabel = timestamp
                 )
-                savedLines.add("$type: $count $timestamp")
-            }
+            )
+            changes.add("${player.name}: $type x$count")
         }
 
-        register("Gol", draft.gol)
-        register("Asistencia", draft.asistencia)
-        register("Amarilla", draft.amarilla)
-        register("Roja", draft.roja)
-        register("Disparos al Arco", draft.disparosAlArco)
-        register("Ocasiones de Gol", draft.ocasionesDeGol)
-        register("Pelotas Perdidas", draft.pelotasPerdidas)
-        register("Pelotas Recuperadas", draft.pelotasRecuperadas)
-        register("Centros Buenos", draft.centrosBuenos)
-        register("Centros Malos", draft.centrosMalos)
-        register("Falta a Favor", draft.faltaAFavor)
-        register("Falta en Contra", draft.faltaEnContra)
-        register("Corner a Favor", draft.cornerAFavor)
-        register("Corner en Contra", draft.cornerEnContra)
-        register("Tiro Libre a Favor", draft.tiroLibreAFavor)
-        register("Tiro Libre en Contra", draft.tiroLibreEnContra)
-        register("Tiro Libre Lateral a Favor", draft.tiroLibreLateralAFavor)
-        register("Tiro Libre Lateral en Contra", draft.tiroLibreLateralEnContra)
+        // Bloque 1
+        addEvent("Gol a Favor", draft.golFavor)
+        addEvent("Gol en Contra", draft.golContra)
+        addEvent("Tiro al Arco +", draft.tiroAlArcoPositivo)
+        addEvent("Tiro al Arco -", draft.tiroAlArcoNegativo)
+        addEvent("Participación de Gol a Favor", draft.participacionGolFavor)
+        addEvent("Participación de Gol en Contra", draft.participacionGolContra)
+        addEvent("Remate 1/2 +", draft.remate12Positivo)
+        addEvent("Remate 1/2 -", draft.remate12Negativo)
 
-        if (newEvents.isNotEmpty()) {
+        // Bloque 2
+        addEvent("Balón Recogido a Favor", draft.balonRecogidoFavor)
+        addEvent("Balón Recogido en Contra", draft.balonRecogidoContra)
+        addEvent("Pases Buenos", draft.pasesBuenos)
+        addEvent("Pases Malos", draft.pasesMalos)
+        addEvent("Centros +", draft.centrosPositivos)
+        addEvent("Centros -", draft.centrosNegativos)
+        addEvent("Rechazos +", draft.rechazosPositivos)
+        addEvent("Rechazos -", draft.rechazosNegativos)
+
+        // Bloque 3
+        addEvent("Falta a Favor", draft.faltaFavor)
+        addEvent("Falta en Contra", draft.faltaContra)
+        addEvent("Corner +", draft.cornerPositivo)
+        addEvent("Corner -", draft.cornerNegativo)
+        addEvent("Tiro Libre a Favor", draft.tiroLibreFavor)
+        addEvent("Tiro Libre en Contra", draft.tiroLibreContra)
+        addEvent("Penal a Favor", draft.penalFavor)
+        addEvent("Penal en Contra", draft.penalContra)
+
+        // Se mantienen
+        addEvent("Amarilla", draft.amarilla)
+        addEvent("Roja", draft.roja)
+
+        if (newEvents.isEmpty()) return emptyList()
+
+        if (isEditingFinishedMatchMode()) {
+            return saveEditedFinishedMatch(playerId)
+        } else {
             val updatedMatch = match.copy(
-                events = match.events.toMutableList().apply { addAll(newEvents) }
+                events = (match.events + newEvents).sortedBy { it.minute }.toMutableList()
             )
             currentMatch = updatedMatch
 
-            playerStatsDrafts[key] = PlayerStatsDraft(
-                playerId = player.id,
-                matchId = match.id
-            )
-
             viewModelScope.launch {
-                repository.addEvents(match.id, newEvents)
+                newEvents.forEach { event ->
+                    repository.addEvent(updatedMatch.id, event)
+                }
             }
         }
 
-        return savedLines
+        clearPlayerStatsDraft(playerId)
+        return changes
     }
 
     fun updatePlayerStatsDraft(updatedDraft: PlayerStatsDraft) {

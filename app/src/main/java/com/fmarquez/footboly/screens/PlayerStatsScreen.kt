@@ -1,11 +1,14 @@
 package com.fmarquez.footboly.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,23 +17,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Dangerous
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -43,6 +40,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,7 +51,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -59,19 +59,45 @@ import com.fmarquez.footboly.util.hexToColor
 import com.fmarquez.footboly.util.teamColorLight
 import com.fmarquez.footboly.vm.FutbolViewModel
 
-private val BgColor       = Color(0xFFF7F7F5)
-private val SurfaceColor  = Color(0xFFFFFFFF)
-private val TextPrimary   = Color(0xFF111111)
+private val BgColor = Color(0xFFF7F7F5)
+private val SurfaceColor = Color(0xFFFFFFFF)
+private val TextPrimary = Color(0xFF111111)
 private val TextSecondary = Color(0xFF888888)
-private val BorderColor   = Color(0xFFE0E0DC)
+private val BorderColor = Color(0xFFE0E0DC)
+private val ErrorRed = Color(0xFFD32F2F)
+private val ErrorRedLight = Color(0xFFFFF1F1)
 
-data class SingleStatUi(val label: String, val icon: ImageVector, val initialValue: Int = 0)
-data class DualStatUi(
-    val label: String,
-    val favorLabel: String, val contraLabel: String,
-    val favorIcon: ImageVector, val contraIcon: ImageVector,
-    val favorInitial: Int = 0, val contraInitial: Int = 0
-)
+private object StatKey {
+    const val GOL_FAVOR = "GOL_FAVOR"
+    const val GOL_CONTRA = "GOL_CONTRA"
+    const val TIRO_ARCO_POS = "TIRO_ARCO_POS"
+    const val TIRO_ARCO_NEG = "TIRO_ARCO_NEG"
+    const val PART_GOL_FAVOR = "PART_GOL_FAVOR"
+    const val PART_GOL_CONTRA = "PART_GOL_CONTRA"
+    const val REMATE12_POS = "REMATE12_POS"
+    const val REMATE12_NEG = "REMATE12_NEG"
+
+    const val BALON_RECOGIDO_FAVOR = "BALON_RECOGIDO_FAVOR"
+    const val BALON_RECOGIDO_CONTRA = "BALON_RECOGIDO_CONTRA"
+    const val PASES_BUENOS = "PASES_BUENOS"
+    const val PASES_MALOS = "PASES_MALOS"
+    const val CENTROS_POS = "CENTROS_POS"
+    const val CENTROS_NEG = "CENTROS_NEG"
+    const val RECHAZOS_POS = "RECHAZOS_POS"
+    const val RECHAZOS_NEG = "RECHAZOS_NEG"
+
+    const val FALTA_FAVOR = "FALTA_FAVOR"
+    const val FALTA_CONTRA = "FALTA_CONTRA"
+    const val CORNER_POS = "CORNER_POS"
+    const val CORNER_NEG = "CORNER_NEG"
+    const val TIRO_LIBRE_FAVOR = "TIRO_LIBRE_FAVOR"
+    const val TIRO_LIBRE_CONTRA = "TIRO_LIBRE_CONTRA"
+    const val PENAL_FAVOR = "PENAL_FAVOR"
+    const val PENAL_CONTRA = "PENAL_CONTRA"
+
+    const val AMARILLA = "AMARILLA"
+    const val ROJA = "ROJA"
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -85,35 +111,21 @@ fun PlayerStatsScreen(
     val activeMatch = vm.getActiveMatchForStats() ?: return
     val isEditingFinishedMatch = vm.isEditingFinishedMatchMode()
 
-    // Colores dinámicos del equipo
-    val teamColor      = hexToColor(team.shirtColorHex)
+    val teamColor = hexToColor(team.shirtColorHex)
     val teamColorLight = teamColorLight(teamColor)
-
-    val singleStats = listOf(
-        SingleStatUi("Gol", Icons.Default.SportsSoccer),
-        SingleStatUi("Asistencia", Icons.Default.Send),
-        SingleStatUi("Amarilla", Icons.Default.Warning),
-        SingleStatUi("Roja", Icons.Default.Dangerous),
-        SingleStatUi("Disparos al Arco", Icons.Default.Star),
-        SingleStatUi("Ocasiones de Gol", Icons.Default.Star),
-        SingleStatUi("Pelotas Perdidas", Icons.Default.Clear),
-        SingleStatUi("Pelotas Recuperadas", Icons.Default.Star),
-        SingleStatUi("Centros Buenos", Icons.Default.Check),
-        SingleStatUi("Centros Malos", Icons.Default.Clear)
-    )
-
-    val dualStats = listOf(
-        DualStatUi("Faltas", "Falta a Favor", "Falta en Contra", Icons.Default.CheckCircle, Icons.Default.Close),
-        DualStatUi("Corner", "Corner a Favor", "Corner en Contra", Icons.Default.CheckCircle, Icons.Default.Close),
-        DualStatUi("Tiro Libre", "Tiro Libre a Favor", "Tiro Libre en Contra", Icons.Default.CheckCircle, Icons.Default.Close),
-        DualStatUi("T.L. Lateral", "Tiro Libre Lateral a Favor", "Tiro Libre Lateral en Contra", Icons.Default.CheckCircle, Icons.Default.Close)
-    )
 
     val role = when {
         activeMatch.starters.any { it.id == player.id } -> "Titular"
         activeMatch.substitutes.any { it.id == player.id } -> "Reserva"
         else -> ""
     }
+
+    var expandGol by rememberSaveable { mutableStateOf(true) }
+    var expandJuego by rememberSaveable { mutableStateOf(false) }
+    var expandDetenido by rememberSaveable { mutableStateOf(false) }
+    var expandTarjetas by rememberSaveable { mutableStateOf(false) }
+
+    val currentDraft = vm.getOrCreatePlayerStatsDraft(player.id)
 
     Scaffold(
         containerColor = BgColor,
@@ -137,11 +149,18 @@ fun PlayerStatsScreen(
                         onClick = {
                             val savedLines = vm.savePlayerStatsDraftAsEvents(player.id)
                             if (isEditingFinishedMatch) {
-                                Toast.makeText(context, if (savedLines.isEmpty()) "No hubo cambios" else "Cambios guardados", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    if (savedLines.isEmpty()) "No hubo cambios" else "Cambios guardados",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                                 navHostController.popBackStack()
                             } else {
-                                val toastText = if (savedLines.isEmpty()) "Sin cambios para registrar"
-                                else (savedLines + "Registrado").joinToString("\n")
+                                val toastText = if (savedLines.isEmpty()) {
+                                    "Sin cambios para registrar"
+                                } else {
+                                    (savedLines + "Registrado").joinToString("\n")
+                                }
                                 Toast.makeText(context, toastText, Toast.LENGTH_LONG).show()
                             }
                         },
@@ -151,7 +170,12 @@ fun PlayerStatsScreen(
                             .clip(CircleShape)
                             .background(teamColor)
                     ) {
-                        Icon(Icons.Default.Save, contentDescription = "Guardar", tint = Color.White, modifier = Modifier.size(18.dp))
+                        Icon(
+                            Icons.Default.Save,
+                            contentDescription = "Guardar",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = BgColor)
@@ -163,8 +187,17 @@ fun PlayerStatsScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .padding(horizontal = 20.dp, vertical = 8.dp)
+                .verticalScroll(rememberScrollState())
         ) {
-            // ── Tarjeta del jugador ───────────────────────────────────────────
+            Text(
+                text = "Registro estadístico",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = TextPrimary
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -174,7 +207,9 @@ fun PlayerStatsScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
@@ -190,13 +225,21 @@ fun PlayerStatsScreen(
                     Spacer(modifier = Modifier.width(14.dp))
 
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(player.name, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = TextPrimary)
+                        Text(
+                            text = player.name,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
+                            color = TextPrimary
+                        )
+
                         Text(
                             text = if (role.isNotEmpty()) "$role · N° ${player.number}" else "N° ${player.number}",
                             fontSize = 13.sp,
                             color = TextSecondary
                         )
+
                         Spacer(modifier = Modifier.height(4.dp))
+
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
@@ -214,272 +257,628 @@ fun PlayerStatsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            Text("Registro estadístico", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(2),
-                modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ExpandableStatsSection(
+                title = "Gol",
+                icon = Icons.Default.SportsSoccer,
+                expanded = expandGol,
+                accentColor = teamColor,
+                accentLight = teamColorLight,
+                onToggle = { expandGol = !expandGol }
             ) {
-                items(singleStats) { stat ->
-                    val currentDraft = vm.getOrCreatePlayerStatsDraft(player.id)
-                    SingleStatCard(
-                        stat = stat,
-                        value = singleStatValue(currentDraft, stat.label),
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FavorContraRow(
+                        title = "Gol",
+                        favorValue = draftValue(currentDraft, StatKey.GOL_FAVOR),
+                        contraValue = draftValue(currentDraft, StatKey.GOL_CONTRA),
                         accentColor = teamColor,
-                        onIncrease = { vm.updatePlayerStatsDraft(increaseSingleStat(vm.getOrCreatePlayerStatsDraft(player.id), stat.label)) },
-                        onDecrease = { vm.updatePlayerStatsDraft(decreaseSingleStat(vm.getOrCreatePlayerStatsDraft(player.id), stat.label)) }
+                        accentLight = teamColorLight,
+                        onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_FAVOR)) },
+                        onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_FAVOR)) },
+                        onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_CONTRA)) },
+                        onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_CONTRA)) }
                     )
-                }
-                items(dualStats) { stat ->
-                    val currentDraft = vm.getOrCreatePlayerStatsDraft(player.id)
-                    DualStatCard(
-                        stat = stat,
-                        favorValue = dualFavorValue(currentDraft, stat.favorLabel),
-                        contraValue = dualContraValue(currentDraft, stat.contraLabel),
+
+                    PositiveNegativeRow(
+                        title = "Tiro al arco",
+                        positiveValue = draftValue(currentDraft, StatKey.TIRO_ARCO_POS),
+                        negativeValue = draftValue(currentDraft, StatKey.TIRO_ARCO_NEG),
+                        positiveAccent = teamColor,
+                        positiveLight = teamColorLight,
+                        onPositiveIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_ARCO_POS)) },
+                        onPositiveDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_ARCO_POS)) },
+                        onNegativeIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_ARCO_NEG)) },
+                        onNegativeDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_ARCO_NEG)) }
+                    )
+
+                    FavorContraRow(
+                        title = "Participación de gol",
+                        favorValue = draftValue(currentDraft, StatKey.PART_GOL_FAVOR),
+                        contraValue = draftValue(currentDraft, StatKey.PART_GOL_CONTRA),
                         accentColor = teamColor,
-                        accentColorLight = teamColorLight,
-                        onFavorIncrease = { vm.updatePlayerStatsDraft(increaseDualFavorStat(vm.getOrCreatePlayerStatsDraft(player.id), stat.favorLabel)) },
-                        onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseDualFavorStat(vm.getOrCreatePlayerStatsDraft(player.id), stat.favorLabel)) },
-                        onContraIncrease = { vm.updatePlayerStatsDraft(increaseDualContraStat(vm.getOrCreatePlayerStatsDraft(player.id), stat.contraLabel)) },
-                        onContraDecrease = { vm.updatePlayerStatsDraft(decreaseDualContraStat(vm.getOrCreatePlayerStatsDraft(player.id), stat.contraLabel)) }
+                        accentLight = teamColorLight,
+                        onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_FAVOR)) },
+                        onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_FAVOR)) },
+                        onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_CONTRA)) },
+                        onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_CONTRA)) }
+                    )
+
+                    PositiveNegativeRow(
+                        title = "Remate 1/2",
+                        positiveValue = draftValue(currentDraft, StatKey.REMATE12_POS),
+                        negativeValue = draftValue(currentDraft, StatKey.REMATE12_NEG),
+                        positiveAccent = teamColor,
+                        positiveLight = teamColorLight,
+                        onPositiveIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.REMATE12_POS)) },
+                        onPositiveDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.REMATE12_POS)) },
+                        onNegativeIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.REMATE12_NEG)) },
+                        onNegativeDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.REMATE12_NEG)) }
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            ExpandableStatsSection(
+                title = "Recuperación / Juego",
+                icon = Icons.Default.Star,
+                expanded = expandJuego,
+                accentColor = teamColor,
+                accentLight = teamColorLight,
+                onToggle = { expandJuego = !expandJuego }
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FavorContraRow(
+                        title = "Balón recogido",
+                        favorValue = draftValue(currentDraft, StatKey.BALON_RECOGIDO_FAVOR),
+                        contraValue = draftValue(currentDraft, StatKey.BALON_RECOGIDO_CONTRA),
+                        accentColor = teamColor,
+                        accentLight = teamColorLight,
+                        onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_FAVOR)) },
+                        onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_FAVOR)) },
+                        onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_CONTRA)) },
+                        onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_CONTRA)) }
+                    )
+
+                    GoodBadRow(
+                        title = "Pases",
+                        positiveText = "Buenos",
+                        negativeText = "Malos",
+                        positiveValue = draftValue(currentDraft, StatKey.PASES_BUENOS),
+                        negativeValue = draftValue(currentDraft, StatKey.PASES_MALOS),
+                        positiveAccent = teamColor,
+                        positiveLight = teamColorLight,
+                        onPositiveIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_BUENOS)) },
+                        onPositiveDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_BUENOS)) },
+                        onNegativeIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_MALOS)) },
+                        onNegativeDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_MALOS)) }
+                    )
+
+                    PositiveNegativeRow(
+                        title = "Centros",
+                        positiveValue = draftValue(currentDraft, StatKey.CENTROS_POS),
+                        negativeValue = draftValue(currentDraft, StatKey.CENTROS_NEG),
+                        positiveAccent = teamColor,
+                        positiveLight = teamColorLight,
+                        onPositiveIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_POS)) },
+                        onPositiveDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_POS)) },
+                        onNegativeIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_NEG)) },
+                        onNegativeDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_NEG)) }
+                    )
+
+                    PositiveNegativeRow(
+                        title = "Rechazos",
+                        positiveValue = draftValue(currentDraft, StatKey.RECHAZOS_POS),
+                        negativeValue = draftValue(currentDraft, StatKey.RECHAZOS_NEG),
+                        positiveAccent = teamColor,
+                        positiveLight = teamColorLight,
+                        onPositiveIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_POS)) },
+                        onPositiveDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_POS)) },
+                        onNegativeIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_NEG)) },
+                        onNegativeDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_NEG)) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            ExpandableStatsSection(
+                title = "Faltas / Balón detenido",
+                icon = Icons.Default.Star,
+                expanded = expandDetenido,
+                accentColor = teamColor,
+                accentLight = teamColorLight,
+                onToggle = { expandDetenido = !expandDetenido }
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FavorContraRow(
+                        title = "Falta",
+                        favorValue = draftValue(currentDraft, StatKey.FALTA_FAVOR),
+                        contraValue = draftValue(currentDraft, StatKey.FALTA_CONTRA),
+                        accentColor = teamColor,
+                        accentLight = teamColorLight,
+                        onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_FAVOR)) },
+                        onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_FAVOR)) },
+                        onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_CONTRA)) },
+                        onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_CONTRA)) }
+                    )
+
+                    PositiveNegativeRow(
+                        title = "Corner",
+                        positiveValue = draftValue(currentDraft, StatKey.CORNER_POS),
+                        negativeValue = draftValue(currentDraft, StatKey.CORNER_NEG),
+                        positiveAccent = teamColor,
+                        positiveLight = teamColorLight,
+                        onPositiveIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_POS)) },
+                        onPositiveDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_POS)) },
+                        onNegativeIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_NEG)) },
+                        onNegativeDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_NEG)) }
+                    )
+
+                    FavorContraRow(
+                        title = "Tiro libre",
+                        favorValue = draftValue(currentDraft, StatKey.TIRO_LIBRE_FAVOR),
+                        contraValue = draftValue(currentDraft, StatKey.TIRO_LIBRE_CONTRA),
+                        accentColor = teamColor,
+                        accentLight = teamColorLight,
+                        onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_FAVOR)) },
+                        onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_FAVOR)) },
+                        onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_CONTRA)) },
+                        onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_CONTRA)) }
+                    )
+
+                    FavorContraRow(
+                        title = "Penal",
+                        favorValue = draftValue(currentDraft, StatKey.PENAL_FAVOR),
+                        contraValue = draftValue(currentDraft, StatKey.PENAL_CONTRA),
+                        accentColor = teamColor,
+                        accentLight = teamColorLight,
+                        onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_FAVOR)) },
+                        onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_FAVOR)) },
+                        onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_CONTRA)) },
+                        onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_CONTRA)) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            ExpandableStatsSection(
+                title = "Tarjetas",
+                icon = Icons.Default.Star,
+                expanded = expandTarjetas,
+                accentColor = teamColor,
+                accentLight = teamColorLight,
+                onToggle = { expandTarjetas = !expandTarjetas }
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SingleCounterRow(
+                        title = "Amarilla",
+                        value = draftValue(currentDraft, StatKey.AMARILLA),
+                        accentColor = Color(0xFFF2B705),
+                        lightColor = Color(0xFFFFF8DD),
+                        onIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.AMARILLA)) },
+                        onDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.AMARILLA)) }
+                    )
+
+                    SingleCounterRow(
+                        title = "Roja",
+                        value = draftValue(currentDraft, StatKey.ROJA),
+                        accentColor = ErrorRed,
+                        lightColor = ErrorRedLight,
+                        onIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.ROJA)) },
+                        onDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.ROJA)) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }
 
-// ── Funciones de estado ───────────────────────────────────────────────────────
-fun singleStatValue(draft: PlayerStatsDraft, label: String) = when (label) {
-    "Gol" -> draft.gol; "Asistencia" -> draft.asistencia; "Amarilla" -> draft.amarilla
-    "Roja" -> draft.roja; "Disparos al Arco" -> draft.disparosAlArco
-    "Ocasiones de Gol" -> draft.ocasionesDeGol; "Pelotas Perdidas" -> draft.pelotasPerdidas
-    "Pelotas Recuperadas" -> draft.pelotasRecuperadas; "Centros Buenos" -> draft.centrosBuenos
-    "Centros Malos" -> draft.centrosMalos; else -> 0
-}
-
-fun dualFavorValue(draft: PlayerStatsDraft, label: String) = when (label) {
-    "Falta a Favor" -> draft.faltaAFavor; "Corner a Favor" -> draft.cornerAFavor
-    "Tiro Libre a Favor" -> draft.tiroLibreAFavor; "Tiro Libre Lateral a Favor" -> draft.tiroLibreLateralAFavor; else -> 0
-}
-
-fun dualContraValue(draft: PlayerStatsDraft, label: String) = when (label) {
-    "Falta en Contra" -> draft.faltaEnContra; "Corner en Contra" -> draft.cornerEnContra
-    "Tiro Libre en Contra" -> draft.tiroLibreEnContra; "Tiro Libre Lateral en Contra" -> draft.tiroLibreLateralEnContra; else -> 0
-}
-
-fun increaseSingleStat(draft: PlayerStatsDraft, label: String) = when (label) {
-    "Gol" -> draft.copy(gol = draft.gol + 1); "Asistencia" -> draft.copy(asistencia = draft.asistencia + 1)
-    "Amarilla" -> draft.copy(amarilla = draft.amarilla + 1); "Roja" -> draft.copy(roja = draft.roja + 1)
-    "Disparos al Arco" -> draft.copy(disparosAlArco = draft.disparosAlArco + 1)
-    "Ocasiones de Gol" -> draft.copy(ocasionesDeGol = draft.ocasionesDeGol + 1)
-    "Pelotas Perdidas" -> draft.copy(pelotasPerdidas = draft.pelotasPerdidas + 1)
-    "Pelotas Recuperadas" -> draft.copy(pelotasRecuperadas = draft.pelotasRecuperadas + 1)
-    "Centros Buenos" -> draft.copy(centrosBuenos = draft.centrosBuenos + 1)
-    "Centros Malos" -> draft.copy(centrosMalos = draft.centrosMalos + 1); else -> draft
-}
-
-fun decreaseSingleStat(draft: PlayerStatsDraft, label: String) = when (label) {
-    "Gol" -> draft.copy(gol = (draft.gol - 1).coerceAtLeast(0))
-    "Asistencia" -> draft.copy(asistencia = (draft.asistencia - 1).coerceAtLeast(0))
-    "Amarilla" -> draft.copy(amarilla = (draft.amarilla - 1).coerceAtLeast(0))
-    "Roja" -> draft.copy(roja = (draft.roja - 1).coerceAtLeast(0))
-    "Disparos al Arco" -> draft.copy(disparosAlArco = (draft.disparosAlArco - 1).coerceAtLeast(0))
-    "Ocasiones de Gol" -> draft.copy(ocasionesDeGol = (draft.ocasionesDeGol - 1).coerceAtLeast(0))
-    "Pelotas Perdidas" -> draft.copy(pelotasPerdidas = (draft.pelotasPerdidas - 1).coerceAtLeast(0))
-    "Pelotas Recuperadas" -> draft.copy(pelotasRecuperadas = (draft.pelotasRecuperadas - 1).coerceAtLeast(0))
-    "Centros Buenos" -> draft.copy(centrosBuenos = (draft.centrosBuenos - 1).coerceAtLeast(0))
-    "Centros Malos" -> draft.copy(centrosMalos = (draft.centrosMalos - 1).coerceAtLeast(0)); else -> draft
-}
-
-fun increaseDualFavorStat(draft: PlayerStatsDraft, label: String) = when (label) {
-    "Falta a Favor" -> draft.copy(faltaAFavor = draft.faltaAFavor + 1)
-    "Corner a Favor" -> draft.copy(cornerAFavor = draft.cornerAFavor + 1)
-    "Tiro Libre a Favor" -> draft.copy(tiroLibreAFavor = draft.tiroLibreAFavor + 1)
-    "Tiro Libre Lateral a Favor" -> draft.copy(tiroLibreLateralAFavor = draft.tiroLibreLateralAFavor + 1); else -> draft
-}
-
-fun decreaseDualFavorStat(draft: PlayerStatsDraft, label: String) = when (label) {
-    "Falta a Favor" -> draft.copy(faltaAFavor = (draft.faltaAFavor - 1).coerceAtLeast(0))
-    "Corner a Favor" -> draft.copy(cornerAFavor = (draft.cornerAFavor - 1).coerceAtLeast(0))
-    "Tiro Libre a Favor" -> draft.copy(tiroLibreAFavor = (draft.tiroLibreAFavor - 1).coerceAtLeast(0))
-    "Tiro Libre Lateral a Favor" -> draft.copy(tiroLibreLateralAFavor = (draft.tiroLibreLateralAFavor - 1).coerceAtLeast(0)); else -> draft
-}
-
-fun increaseDualContraStat(draft: PlayerStatsDraft, label: String) = when (label) {
-    "Falta en Contra" -> draft.copy(faltaEnContra = draft.faltaEnContra + 1)
-    "Corner en Contra" -> draft.copy(cornerEnContra = draft.cornerEnContra + 1)
-    "Tiro Libre en Contra" -> draft.copy(tiroLibreEnContra = draft.tiroLibreEnContra + 1)
-    "Tiro Libre Lateral en Contra" -> draft.copy(tiroLibreLateralEnContra = draft.tiroLibreLateralEnContra + 1); else -> draft
-}
-
-fun decreaseDualContraStat(draft: PlayerStatsDraft, label: String) = when (label) {
-    "Falta en Contra" -> draft.copy(faltaEnContra = (draft.faltaEnContra - 1).coerceAtLeast(0))
-    "Corner en Contra" -> draft.copy(cornerEnContra = (draft.cornerEnContra - 1).coerceAtLeast(0))
-    "Tiro Libre en Contra" -> draft.copy(tiroLibreEnContra = (draft.tiroLibreEnContra - 1).coerceAtLeast(0))
-    "Tiro Libre Lateral en Contra" -> draft.copy(tiroLibreLateralEnContra = (draft.tiroLibreLateralEnContra - 1).coerceAtLeast(0)); else -> draft
-}
-
-// ── Tarjetas de estadísticas ──────────────────────────────────────────────────
 @Composable
-fun SingleStatCard(
-    stat: SingleStatUi,
-    value: Int,
-    accentColor: Color = Color(0xFF1E6B45),
-    onIncrease: () -> Unit,
-    onDecrease: () -> Unit
+private fun ExpandableStatsSection(
+    title: String,
+    icon: ImageVector,
+    expanded: Boolean,
+    accentColor: Color,
+    accentLight: Color,
+    onToggle: () -> Unit,
+    content: @Composable () -> Unit
 ) {
-    val accentColorLight = com.fmarquez.footboly.util.teamColorLight(accentColor)
-
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, Color(0xFFE0E0DC), RoundedCornerShape(14.dp)),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF)),
+            .border(1.dp, BorderColor, RoundedCornerShape(18.dp)),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onToggle() }
+                .padding(horizontal = 16.dp, vertical = 15.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier.size(36.dp).clip(CircleShape).background(accentColorLight),
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(accentLight),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(stat.icon, contentDescription = stat.label, tint = accentColor, modifier = Modifier.size(18.dp))
+                Icon(icon, contentDescription = title, tint = accentColor, modifier = Modifier.size(20.dp))
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            Text(stat.label, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color(0xFF111111), textAlign = TextAlign.Center)
+            Text(
+                text = title,
+                modifier = Modifier.weight(1f),
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = TextPrimary
+            )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Icon(
+                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                tint = TextSecondary
+            )
+        }
 
-            Text(value.toString(), fontWeight = FontWeight.Bold, fontSize = 28.sp, color = Color(0xFF111111))
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(horizontalArrangement = Arrangement.Center) {
-                OutlinedButton(
-                    onClick = onDecrease,
-                    modifier = Modifier.size(width = 48.dp, height = 36.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE0E0DC)),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF888888)),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                ) { Text("−", fontWeight = FontWeight.Bold) }
-
-                Spacer(modifier = Modifier.width(6.dp))
-
-                OutlinedButton(
-                    onClick = onIncrease,
-                    modifier = Modifier.size(width = 48.dp, height = 36.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, accentColor),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = accentColor),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                ) { Text("+", fontWeight = FontWeight.Bold) }
+        if (expanded) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 16.dp)
+            ) {
+                content()
             }
         }
     }
 }
 
 @Composable
-fun DualStatCard(
-    stat: DualStatUi,
+private fun FavorContraRow(
+    title: String,
     favorValue: Int,
     contraValue: Int,
-    accentColor: Color = Color(0xFF1E6B45),
-    accentColorLight: Color = Color(0xFFE8F2EC),
+    accentColor: Color,
+    accentLight: Color,
     onFavorIncrease: () -> Unit,
     onFavorDecrease: () -> Unit,
     onContraIncrease: () -> Unit,
     onContraDecrease: () -> Unit
 ) {
-    val ErrorRed    = Color(0xFFD32F2F)
-    val BorderColor = Color(0xFFE0E0DC)
-    val TextPrimary = Color(0xFF111111)
+    BaseStatCard(title = title) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            CounterCard(
+                modifier = Modifier.weight(1f),
+                label = "Favor",
+                value = favorValue,
+                accentColor = accentColor,
+                lightColor = accentLight,
+                onIncrease = onFavorIncrease,
+                onDecrease = onFavorDecrease
+            )
 
+            CounterCard(
+                modifier = Modifier.weight(1f),
+                label = "Contra",
+                value = contraValue,
+                accentColor = ErrorRed,
+                lightColor = ErrorRedLight,
+                onIncrease = onContraIncrease,
+                onDecrease = onContraDecrease
+            )
+        }
+    }
+}
+
+@Composable
+private fun PositiveNegativeRow(
+    title: String,
+    positiveValue: Int,
+    negativeValue: Int,
+    positiveAccent: Color,
+    positiveLight: Color,
+    onPositiveIncrease: () -> Unit,
+    onPositiveDecrease: () -> Unit,
+    onNegativeIncrease: () -> Unit,
+    onNegativeDecrease: () -> Unit
+) {
+    BaseStatCard(title = title) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            CounterCard(
+                modifier = Modifier.weight(1f),
+                label = "+",
+                value = positiveValue,
+                accentColor = positiveAccent,
+                lightColor = positiveLight,
+                onIncrease = onPositiveIncrease,
+                onDecrease = onPositiveDecrease
+            )
+
+            CounterCard(
+                modifier = Modifier.weight(1f),
+                label = "-",
+                value = negativeValue,
+                accentColor = ErrorRed,
+                lightColor = ErrorRedLight,
+                onIncrease = onNegativeIncrease,
+                onDecrease = onNegativeDecrease
+            )
+        }
+    }
+}
+
+@Composable
+private fun GoodBadRow(
+    title: String,
+    positiveText: String,
+    negativeText: String,
+    positiveValue: Int,
+    negativeValue: Int,
+    positiveAccent: Color,
+    positiveLight: Color,
+    onPositiveIncrease: () -> Unit,
+    onPositiveDecrease: () -> Unit,
+    onNegativeIncrease: () -> Unit,
+    onNegativeDecrease: () -> Unit
+) {
+    BaseStatCard(title = title) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            CounterCard(
+                modifier = Modifier.weight(1f),
+                label = positiveText,
+                value = positiveValue,
+                accentColor = positiveAccent,
+                lightColor = positiveLight,
+                onIncrease = onPositiveIncrease,
+                onDecrease = onPositiveDecrease
+            )
+
+            CounterCard(
+                modifier = Modifier.weight(1f),
+                label = negativeText,
+                value = negativeValue,
+                accentColor = ErrorRed,
+                lightColor = ErrorRedLight,
+                onIncrease = onNegativeIncrease,
+                onDecrease = onNegativeDecrease
+            )
+        }
+    }
+}
+
+@Composable
+private fun SingleCounterRow(
+    title: String,
+    value: Int,
+    accentColor: Color,
+    lightColor: Color,
+    onIncrease: () -> Unit,
+    onDecrease: () -> Unit
+) {
+    BaseStatCard(title = title) {
+        CounterCard(
+            modifier = Modifier.fillMaxWidth(),
+            label = title,
+            value = value,
+            accentColor = accentColor,
+            lightColor = lightColor,
+            onIncrease = onIncrease,
+            onDecrease = onDecrease
+        )
+    }
+}
+
+@Composable
+private fun BaseStatCard(
+    title: String,
+    content: @Composable () -> Unit
+) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFFFF)),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp)
         ) {
-            Text(stat.label, fontWeight = FontWeight.Bold, fontSize = 13.sp, color = TextPrimary)
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = TextPrimary
+            )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            content()
+        }
+    }
+}
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // A favor
-                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("A favor", fontSize = 11.sp, color = accentColor, fontWeight = FontWeight.Medium)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(favorValue.toString(), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row {
-                        OutlinedButton(
-                            onClick = onFavorDecrease,
-                            modifier = Modifier.size(width = 38.dp, height = 32.dp),
-                            shape = RoundedCornerShape(7.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF888888)),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                        ) { Text("−", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                        Spacer(modifier = Modifier.width(4.dp))
-                        OutlinedButton(
-                            onClick = onFavorIncrease,
-                            modifier = Modifier.size(width = 38.dp, height = 32.dp),
-                            shape = RoundedCornerShape(7.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, accentColor),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = accentColor),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                        ) { Text("+", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                    }
-                }
+@Composable
+private fun CounterCard(
+    modifier: Modifier = Modifier,
+    label: String,
+    value: Int,
+    accentColor: Color,
+    lightColor: Color,
+    onIncrease: () -> Unit,
+    onDecrease: () -> Unit
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(lightColor)
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = accentColor
+        )
 
-                Box(modifier = Modifier.width(1.dp).height(80.dp).background(BorderColor).align(Alignment.CenterVertically))
+        Spacer(modifier = Modifier.height(8.dp))
 
-                // En contra
-                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("En contra", fontSize = 11.sp, color = ErrorRed, fontWeight = FontWeight.Medium)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(contraValue.toString(), fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row {
-                        OutlinedButton(
-                            onClick = onContraDecrease,
-                            modifier = Modifier.size(width = 38.dp, height = 32.dp),
-                            shape = RoundedCornerShape(7.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF888888)),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                        ) { Text("−", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                        Spacer(modifier = Modifier.width(4.dp))
-                        OutlinedButton(
-                            onClick = onContraIncrease,
-                            modifier = Modifier.size(width = 38.dp, height = 32.dp),
-                            shape = RoundedCornerShape(7.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = ErrorRed),
-                            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
-                        ) { Text("+", fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                    }
-                }
+        Text(
+            text = value.toString(),
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedButton(
+                onClick = onDecrease,
+                modifier = Modifier.size(width = 48.dp, height = 36.dp),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, BorderColor),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text("−", fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(modifier = Modifier.width(6.dp))
+
+            OutlinedButton(
+                onClick = onIncrease,
+                modifier = Modifier.size(width = 48.dp, height = 36.dp),
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, accentColor),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = accentColor),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Text("+", fontWeight = FontWeight.Bold)
             }
         }
     }
+}
+
+private fun draftValue(draft: PlayerStatsDraft, key: String): Int = when (key) {
+    StatKey.GOL_FAVOR -> draft.golFavor
+    StatKey.GOL_CONTRA -> draft.golContra
+    StatKey.TIRO_ARCO_POS -> draft.tiroAlArcoPositivo
+    StatKey.TIRO_ARCO_NEG -> draft.tiroAlArcoNegativo
+    StatKey.PART_GOL_FAVOR -> draft.participacionGolFavor
+    StatKey.PART_GOL_CONTRA -> draft.participacionGolContra
+    StatKey.REMATE12_POS -> draft.remate12Positivo
+    StatKey.REMATE12_NEG -> draft.remate12Negativo
+
+    StatKey.BALON_RECOGIDO_FAVOR -> draft.balonRecogidoFavor
+    StatKey.BALON_RECOGIDO_CONTRA -> draft.balonRecogidoContra
+    StatKey.PASES_BUENOS -> draft.pasesBuenos
+    StatKey.PASES_MALOS -> draft.pasesMalos
+    StatKey.CENTROS_POS -> draft.centrosPositivos
+    StatKey.CENTROS_NEG -> draft.centrosNegativos
+    StatKey.RECHAZOS_POS -> draft.rechazosPositivos
+    StatKey.RECHAZOS_NEG -> draft.rechazosNegativos
+
+    StatKey.FALTA_FAVOR -> draft.faltaFavor
+    StatKey.FALTA_CONTRA -> draft.faltaContra
+    StatKey.CORNER_POS -> draft.cornerPositivo
+    StatKey.CORNER_NEG -> draft.cornerNegativo
+    StatKey.TIRO_LIBRE_FAVOR -> draft.tiroLibreFavor
+    StatKey.TIRO_LIBRE_CONTRA -> draft.tiroLibreContra
+    StatKey.PENAL_FAVOR -> draft.penalFavor
+    StatKey.PENAL_CONTRA -> draft.penalContra
+
+    StatKey.AMARILLA -> draft.amarilla
+    StatKey.ROJA -> draft.roja
+    else -> 0
+}
+
+private fun increaseStat(draft: PlayerStatsDraft, key: String): PlayerStatsDraft = when (key) {
+    StatKey.GOL_FAVOR -> draft.copy(golFavor = draft.golFavor + 1)
+    StatKey.GOL_CONTRA -> draft.copy(golContra = draft.golContra + 1)
+    StatKey.TIRO_ARCO_POS -> draft.copy(tiroAlArcoPositivo = draft.tiroAlArcoPositivo + 1)
+    StatKey.TIRO_ARCO_NEG -> draft.copy(tiroAlArcoNegativo = draft.tiroAlArcoNegativo + 1)
+    StatKey.PART_GOL_FAVOR -> draft.copy(participacionGolFavor = draft.participacionGolFavor + 1)
+    StatKey.PART_GOL_CONTRA -> draft.copy(participacionGolContra = draft.participacionGolContra + 1)
+    StatKey.REMATE12_POS -> draft.copy(remate12Positivo = draft.remate12Positivo + 1)
+    StatKey.REMATE12_NEG -> draft.copy(remate12Negativo = draft.remate12Negativo + 1)
+
+    StatKey.BALON_RECOGIDO_FAVOR -> draft.copy(balonRecogidoFavor = draft.balonRecogidoFavor + 1)
+    StatKey.BALON_RECOGIDO_CONTRA -> draft.copy(balonRecogidoContra = draft.balonRecogidoContra + 1)
+    StatKey.PASES_BUENOS -> draft.copy(pasesBuenos = draft.pasesBuenos + 1)
+    StatKey.PASES_MALOS -> draft.copy(pasesMalos = draft.pasesMalos + 1)
+    StatKey.CENTROS_POS -> draft.copy(centrosPositivos = draft.centrosPositivos + 1)
+    StatKey.CENTROS_NEG -> draft.copy(centrosNegativos = draft.centrosNegativos + 1)
+    StatKey.RECHAZOS_POS -> draft.copy(rechazosPositivos = draft.rechazosPositivos + 1)
+    StatKey.RECHAZOS_NEG -> draft.copy(rechazosNegativos = draft.rechazosNegativos + 1)
+
+    StatKey.FALTA_FAVOR -> draft.copy(faltaFavor = draft.faltaFavor + 1)
+    StatKey.FALTA_CONTRA -> draft.copy(faltaContra = draft.faltaContra + 1)
+    StatKey.CORNER_POS -> draft.copy(cornerPositivo = draft.cornerPositivo + 1)
+    StatKey.CORNER_NEG -> draft.copy(cornerNegativo = draft.cornerNegativo + 1)
+    StatKey.TIRO_LIBRE_FAVOR -> draft.copy(tiroLibreFavor = draft.tiroLibreFavor + 1)
+    StatKey.TIRO_LIBRE_CONTRA -> draft.copy(tiroLibreContra = draft.tiroLibreContra + 1)
+    StatKey.PENAL_FAVOR -> draft.copy(penalFavor = draft.penalFavor + 1)
+    StatKey.PENAL_CONTRA -> draft.copy(penalContra = draft.penalContra + 1)
+
+    StatKey.AMARILLA -> draft.copy(amarilla = draft.amarilla + 1)
+    StatKey.ROJA -> draft.copy(roja = draft.roja + 1)
+    else -> draft
+}
+
+private fun decreaseStat(draft: PlayerStatsDraft, key: String): PlayerStatsDraft = when (key) {
+    StatKey.GOL_FAVOR -> draft.copy(golFavor = (draft.golFavor - 1).coerceAtLeast(0))
+    StatKey.GOL_CONTRA -> draft.copy(golContra = (draft.golContra - 1).coerceAtLeast(0))
+    StatKey.TIRO_ARCO_POS -> draft.copy(tiroAlArcoPositivo = (draft.tiroAlArcoPositivo - 1).coerceAtLeast(0))
+    StatKey.TIRO_ARCO_NEG -> draft.copy(tiroAlArcoNegativo = (draft.tiroAlArcoNegativo - 1).coerceAtLeast(0))
+    StatKey.PART_GOL_FAVOR -> draft.copy(participacionGolFavor = (draft.participacionGolFavor - 1).coerceAtLeast(0))
+    StatKey.PART_GOL_CONTRA -> draft.copy(participacionGolContra = (draft.participacionGolContra - 1).coerceAtLeast(0))
+    StatKey.REMATE12_POS -> draft.copy(remate12Positivo = (draft.remate12Positivo - 1).coerceAtLeast(0))
+    StatKey.REMATE12_NEG -> draft.copy(remate12Negativo = (draft.remate12Negativo - 1).coerceAtLeast(0))
+
+    StatKey.BALON_RECOGIDO_FAVOR -> draft.copy(balonRecogidoFavor = (draft.balonRecogidoFavor - 1).coerceAtLeast(0))
+    StatKey.BALON_RECOGIDO_CONTRA -> draft.copy(balonRecogidoContra = (draft.balonRecogidoContra - 1).coerceAtLeast(0))
+    StatKey.PASES_BUENOS -> draft.copy(pasesBuenos = (draft.pasesBuenos - 1).coerceAtLeast(0))
+    StatKey.PASES_MALOS -> draft.copy(pasesMalos = (draft.pasesMalos - 1).coerceAtLeast(0))
+    StatKey.CENTROS_POS -> draft.copy(centrosPositivos = (draft.centrosPositivos - 1).coerceAtLeast(0))
+    StatKey.CENTROS_NEG -> draft.copy(centrosNegativos = (draft.centrosNegativos - 1).coerceAtLeast(0))
+    StatKey.RECHAZOS_POS -> draft.copy(rechazosPositivos = (draft.rechazosPositivos - 1).coerceAtLeast(0))
+    StatKey.RECHAZOS_NEG -> draft.copy(rechazosNegativos = (draft.rechazosNegativos - 1).coerceAtLeast(0))
+
+    StatKey.FALTA_FAVOR -> draft.copy(faltaFavor = (draft.faltaFavor - 1).coerceAtLeast(0))
+    StatKey.FALTA_CONTRA -> draft.copy(faltaContra = (draft.faltaContra - 1).coerceAtLeast(0))
+    StatKey.CORNER_POS -> draft.copy(cornerPositivo = (draft.cornerPositivo - 1).coerceAtLeast(0))
+    StatKey.CORNER_NEG -> draft.copy(cornerNegativo = (draft.cornerNegativo - 1).coerceAtLeast(0))
+    StatKey.TIRO_LIBRE_FAVOR -> draft.copy(tiroLibreFavor = (draft.tiroLibreFavor - 1).coerceAtLeast(0))
+    StatKey.TIRO_LIBRE_CONTRA -> draft.copy(tiroLibreContra = (draft.tiroLibreContra - 1).coerceAtLeast(0))
+    StatKey.PENAL_FAVOR -> draft.copy(penalFavor = (draft.penalFavor - 1).coerceAtLeast(0))
+    StatKey.PENAL_CONTRA -> draft.copy(penalContra = (draft.penalContra - 1).coerceAtLeast(0))
+
+    StatKey.AMARILLA -> draft.copy(amarilla = (draft.amarilla - 1).coerceAtLeast(0))
+    StatKey.ROJA -> draft.copy(roja = (draft.roja - 1).coerceAtLeast(0))
+    else -> draft
 }
