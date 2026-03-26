@@ -63,6 +63,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -106,6 +107,7 @@ fun MatchConfigScreen(
 
     var selectedTab      by rememberSaveable { mutableIntStateOf(0) }
     var showSetupDialog  by remember { mutableStateOf(false) }
+    var showLessThanElevenDialog by remember { mutableStateOf(false) }
 
     // Estado del diálogo
     var rivalName           by remember { mutableStateOf("") }
@@ -184,7 +186,12 @@ fun MatchConfigScreen(
                                     Toast.makeText(context, "Selecciona al menos 5 jugadores para iniciar", Toast.LENGTH_SHORT).show()
                                     return@IconButton
                                 }
-                                openSetupDialog()
+
+                                if (match.starters.size < 11) {
+                                    showLessThanElevenDialog = true
+                                } else {
+                                    openSetupDialog()
+                                }
                             },
                             modifier = Modifier
                                 .padding(end = 8.dp)
@@ -275,6 +282,41 @@ fun MatchConfigScreen(
                 }
             }
         }
+    }
+    if (showLessThanElevenDialog) {
+        AlertDialog(
+            onDismissRequest = { showLessThanElevenDialog = false },
+            containerColor = SurfaceColor,
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text(
+                    "Menos de 11 titulares",
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Text(
+                    "Has seleccionado menos de 11 titulares. ¿Deseas continuar de todas formas?",
+                    color = TextSecondary
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { showLessThanElevenDialog = false }) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLessThanElevenDialog = false
+                        openSetupDialog()
+                    }
+                ) {
+                    Text("Continuar", color = teamColor, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        )
     }
 
     // ── Diálogo: rival + fecha/hora + duración ────────────────────────────────

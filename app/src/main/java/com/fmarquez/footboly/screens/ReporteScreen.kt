@@ -40,10 +40,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -78,6 +77,9 @@ fun ReporteScreen(
     val context = LocalContext.current
     val team = vm.selectedTeam ?: return
     val match = vm.currentMatch ?: return
+
+    val displayedStarters = vm.getCurrentStarters(match)
+    val displayedSubstitutes = vm.getCurrentSubstitutes(match)
 
     // ticker simple para recomponer cada segundo mientras el partido está en curso
     val liveTick by produceState(initialValue = 0, key1 = match.isStarted, key2 = match.isFinished) {
@@ -166,14 +168,25 @@ fun ReporteScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Titulares", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+                Text(
+                    "Titulares",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
                         .background(teamColorLight)
                         .padding(horizontal = 10.dp, vertical = 3.dp)
                 ) {
-                    Text("${match.starters.size}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = teamColor)
+                    Text(
+                        "${displayedStarters.size}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = teamColor
+                    )
                 }
             }
 
@@ -192,7 +205,7 @@ fun ReporteScreen(
                     modifier = Modifier.padding(horizontal = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(0.dp)
                 ) {
-                    items(match.starters, key = { it.id }) { player ->
+                    items(items = displayedStarters, key = { player -> player.id }) { player ->
                         val playerTime = vm.getFormattedPlayerTime(player.id, vm.currentMatch)
                         PlayerRowItem(
                             player = player,
@@ -201,7 +214,7 @@ fun ReporteScreen(
                             teamColorLight = teamColorLight,
                             playedTime = playerTime,
                             showStats = true,
-                            showSwap = !match.isFinished && match.substitutes.isNotEmpty(),
+                            showSwap = !match.isFinished && displayedSubstitutes.isNotEmpty(),
                             onStats = {
                                 vm.selectPlayerForStats(player.id)
                                 navHostController.navigate(Screen.PLAYER_STATS.route)
@@ -223,14 +236,25 @@ fun ReporteScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Reservas", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+                Text(
+                    "Reservas",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = TextPrimary,
+                    modifier = Modifier.weight(1f)
+                )
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color(0xFFF5F5F5))
                         .padding(horizontal = 10.dp, vertical = 3.dp)
                 ) {
-                    Text("${match.substitutes.size}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                    Text(
+                        "${displayedSubstitutes.size}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextSecondary
+                    )
                 }
             }
 
@@ -245,7 +269,7 @@ fun ReporteScreen(
                 colors = CardDefaults.cardColors(containerColor = SurfaceColor),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                if (match.substitutes.isEmpty()) {
+                if (displayedSubstitutes.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -256,7 +280,7 @@ fun ReporteScreen(
                     }
                 } else {
                     LazyColumn(modifier = Modifier.padding(horizontal = 4.dp)) {
-                        items(match.substitutes, key = { it.id }) { player ->
+                        items(items = displayedSubstitutes, key = { player -> player.id }) { player ->
                             val playerTime = vm.getFormattedPlayerTime(player.id, vm.currentMatch)
                             PlayerRowItem(
                                 player = player,
@@ -298,7 +322,7 @@ fun ReporteScreen(
     if (showSwapDialog && starterToSwap != null) {
         MatchSwapDialog(
             starter = starterToSwap!!,
-            substitutes = match.substitutes,
+            substitutes = displayedSubstitutes,
             selectedSubstitute = selectedSubstitute,
             onSelectSubstitute = { selectedSubstitute = it },
             onDismiss = {

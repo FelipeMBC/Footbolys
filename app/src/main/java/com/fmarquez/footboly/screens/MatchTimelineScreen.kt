@@ -69,10 +69,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.fmarquez.footboly.modelos.MatchEvent
 import com.fmarquez.footboly.modelos.MatchRecord
 import com.fmarquez.footboly.modelos.Player
@@ -120,6 +124,18 @@ private fun buildEventSummary(events: List<MatchEvent>): List<EventSummaryItem> 
     }.sortedBy { it.type }
 }
 
+private fun teamGoals(match: MatchRecord): Int {
+    return match.events
+        .filter { it.type == "Gol" }
+        .sumOf { parseEventCount(it.detail) }
+}
+
+private fun matchHistorySubtitle(match: MatchRecord): String {
+    val rival = match.rivalName.ifBlank { "Sin rival" }
+    val goals = teamGoals(match)
+    return "${match.teamName} $goals - ? $rival"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MatchTimelineScreen(
@@ -160,7 +176,7 @@ fun MatchTimelineScreen(
     ) { padding ->
         if (selectedMatch == null) {
             MatchHistoryList(
-                matches = vm.finishedMatches,
+                matches = vm.finishedMatches.sortedByDescending { it.finishedAtMillis ?: it.createdAtMillis },
                 onSelectMatch = { vm.selectFinishedMatch(it) },
                 onEditMatch = { vm.selectFinishedMatch(it) },
                 onDeleteMatch = { matchToDelete = it },
@@ -467,26 +483,30 @@ fun MatchHistoryList(
                             .padding(16.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(matchColorLight),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("⚽", fontSize = 22.sp)
+                        if (match.teamName.isNotBlank()) {
+                            val context = LocalContext.current
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(matchColorLight),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("⚽", fontSize = 22.sp)
+                            }
                         }
 
                         Spacer(modifier = Modifier.width(14.dp))
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = match.teamName,
+                                text = matchHistorySubtitle(match),
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 15.sp,
                                 color = TextPrimary
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Spacer(modifier = Modifier.height(6.dp))
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
@@ -503,31 +523,40 @@ fun MatchHistoryList(
                                 )
                             }
 
-                            if (match.rivalName.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        Icons.Default.Shield,
-                                        contentDescription = null,
-                                        tint = matchColor,
-                                        modifier = Modifier.size(13.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = "vs ${match.rivalName}",
-                                        fontSize = 12.sp,
-                                        color = matchColor,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.AccessTime,
+                                    contentDescription = null,
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Duración: ${match.totalSeconds / 60} min",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
                             }
 
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                "${match.totalSeconds / 60} min · ${match.events.size} eventos",
-                                fontSize = 12.sp,
-                                color = TextSecondary
-                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.TrackChanges,
+                                    contentDescription = null,
+                                    tint = matchColor,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Eventos: ${match.events.size}",
+                                    fontSize = 12.sp,
+                                    color = matchColor,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
 
                         Box(
