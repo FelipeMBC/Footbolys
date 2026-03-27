@@ -84,8 +84,9 @@ private object StatKey {
     const val REMATE12_POS = "REMATE12_POS"
     const val REMATE12_NEG = "REMATE12_NEG"
 
-    const val BALON_RECOGIDO_FAVOR = "BALON_RECOGIDO_FAVOR"
-    const val BALON_RECOGIDO_CONTRA = "BALON_RECOGIDO_CONTRA"
+    const val BALON_RECUPERADO = "BALON_RECUPERADO"
+
+    const val BALON_PERDIDO = "BALON_PERDIDO"
     const val PASES_BUENOS = "PASES_BUENOS"
     const val PASES_MALOS = "PASES_MALOS"
     const val CENTROS_POS = "CENTROS_POS"
@@ -851,22 +852,34 @@ private fun StatsSectionContent(
                         rightLabel = "Favor",
                         onFavorIncrease = {
                             vm.updatePlayerStatsDraft(
-                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_FAVOR)
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.GOL_FAVOR
+                                )
                             )
                         },
                         onFavorDecrease = {
                             vm.updatePlayerStatsDraft(
-                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_FAVOR)
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.GOL_FAVOR
+                                )
                             )
                         },
                         onContraIncrease = {
                             vm.updatePlayerStatsDraft(
-                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_CONTRA)
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.GOL_CONTRA
+                                )
                             )
                         },
                         onContraDecrease = {
                             vm.updatePlayerStatsDraft(
-                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_CONTRA)
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.GOL_CONTRA
+                                )
                             )
                         }
                     )
@@ -884,22 +897,34 @@ private fun StatsSectionContent(
                         rightLabel = "Favor",
                         onFavorIncrease = {
                             vm.updatePlayerStatsDraft(
-                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_FAVOR)
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.PART_GOL_FAVOR
+                                )
                             )
                         },
                         onFavorDecrease = {
                             vm.updatePlayerStatsDraft(
-                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_FAVOR)
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.PART_GOL_FAVOR
+                                )
                             )
                         },
                         onContraIncrease = {
                             vm.updatePlayerStatsDraft(
-                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_CONTRA)
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.PART_GOL_CONTRA
+                                )
                             )
                         },
                         onContraDecrease = {
                             vm.updatePlayerStatsDraft(
-                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_CONTRA)
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.PART_GOL_CONTRA
+                                )
                             )
                         }
                     )
@@ -917,12 +942,18 @@ private fun StatsSectionContent(
                         lightColor = teamColorLight,
                         onIncrease = {
                             vm.updatePlayerStatsDraft(
-                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_ARCO_POS)
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.TIRO_ARCO_POS
+                                )
                             )
                         },
                         onDecrease = {
                             vm.updatePlayerStatsDraft(
-                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_ARCO_POS)
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.TIRO_ARCO_POS
+                                )
                             )
                         }
                     )
@@ -935,12 +966,18 @@ private fun StatsSectionContent(
                         lightColor = teamColorLight,
                         onIncrease = {
                             vm.updatePlayerStatsDraft(
-                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.REMATE12_POS)
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.REMATE12_POS
+                                )
                             )
                         },
                         onDecrease = {
                             vm.updatePlayerStatsDraft(
-                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.REMATE12_POS)
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.REMATE12_POS
+                                )
                             )
                         }
                     )
@@ -962,8 +999,8 @@ private fun StatsSectionContent(
                     CompactFavorContraCard(
                         modifier = Modifier.weight(1f),
                         title = "Balón recuperado o perdido",
-                        favorValue = draftValue(currentDraft, StatKey.BALON_RECOGIDO_FAVOR),
-                        contraValue = draftValue(currentDraft, StatKey.BALON_RECOGIDO_CONTRA),
+                        favorValue = draftValue(currentDraft, StatKey.BALON_RECUPERADO),
+                        contraValue = draftValue(currentDraft, StatKey.BALON_PERDIDO),
                         favorAccent = teamColor,
                         favorLight = teamColorLight,
                         contraAccent = ErrorRed,
@@ -972,22 +1009,34 @@ private fun StatsSectionContent(
                         rightLabel = "Recuperado",
                         onFavorIncrease = {
                             vm.updatePlayerStatsDraft(
-                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_FAVOR)
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.BALON_RECUPERADO
+                                )
                             )
                         },
                         onFavorDecrease = {
                             vm.updatePlayerStatsDraft(
-                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_FAVOR)
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.BALON_PERDIDO
+                                )
                             )
                         },
                         onContraIncrease = {
                             vm.updatePlayerStatsDraft(
-                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_CONTRA)
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.BALON_PERDIDO
+                                )
                             )
                         },
                         onContraDecrease = {
                             vm.updatePlayerStatsDraft(
-                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_CONTRA)
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.BALON_PERDIDO
+                                )
                             )
                         }
                     )
@@ -1005,22 +1054,34 @@ private fun StatsSectionContent(
                         rightLabel = "Bueno",
                         onFavorIncrease = {
                             vm.updatePlayerStatsDraft(
-                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_BUENOS)
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.PASES_BUENOS
+                                )
                             )
                         },
                         onFavorDecrease = {
                             vm.updatePlayerStatsDraft(
-                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_BUENOS)
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.PASES_BUENOS
+                                )
                             )
                         },
                         onContraIncrease = {
                             vm.updatePlayerStatsDraft(
-                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_MALOS)
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.PASES_MALOS
+                                )
                             )
                         },
                         onContraDecrease = {
                             vm.updatePlayerStatsDraft(
-                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_MALOS)
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.PASES_MALOS
+                                )
                             )
                         }
                     )
@@ -1030,64 +1091,50 @@ private fun StatsSectionContent(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    CompactPositiveNegativeCard(
+                    CompactSingleCounterCard(
                         modifier = Modifier.weight(1f),
                         title = "Centro",
-                        positiveValue = draftValue(currentDraft, StatKey.CENTROS_POS),
-                        negativeValue = draftValue(currentDraft, StatKey.CENTROS_NEG),
-                        positiveAccent = teamColor,
-                        positiveLight = teamColorLight,
-                        negativeAccent = ErrorRed,
-                        negativeLight = ErrorRedLight,
-                        onPositiveIncrease = {
+                        value = draftValue(currentDraft, StatKey.CENTROS_POS),
+                        accentColor = teamColor,
+                        lightColor = teamColorLight,
+                        onIncrease = {
                             vm.updatePlayerStatsDraft(
-                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_POS)
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.CENTROS_POS
+                                )
                             )
                         },
-                        onPositiveDecrease = {
+                        onDecrease = {
                             vm.updatePlayerStatsDraft(
-                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_POS)
-                            )
-                        },
-                        onNegativeIncrease = {
-                            vm.updatePlayerStatsDraft(
-                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_NEG)
-                            )
-                        },
-                        onNegativeDecrease = {
-                            vm.updatePlayerStatsDraft(
-                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_NEG)
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.CENTROS_POS
+                                )
                             )
                         }
                     )
 
-                    CompactPositiveNegativeCard(
+                    CompactSingleCounterCard(
                         modifier = Modifier.weight(1f),
                         title = "Rechazo",
-                        positiveValue = draftValue(currentDraft, StatKey.RECHAZOS_POS),
-                        negativeValue = draftValue(currentDraft, StatKey.RECHAZOS_NEG),
-                        positiveAccent = teamColor,
-                        positiveLight = teamColorLight,
-                        negativeAccent = ErrorRed,
-                        negativeLight = ErrorRedLight,
-                        onPositiveIncrease = {
+                        value = draftValue(currentDraft, StatKey.RECHAZOS_POS),
+                        accentColor = teamColor,
+                        lightColor = teamColorLight,
+                        onIncrease = {
                             vm.updatePlayerStatsDraft(
-                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_POS)
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.RECHAZOS_POS
+                                )
                             )
                         },
-                        onPositiveDecrease = {
+                        onDecrease = {
                             vm.updatePlayerStatsDraft(
-                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_POS)
-                            )
-                        },
-                        onNegativeIncrease = {
-                            vm.updatePlayerStatsDraft(
-                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_NEG)
-                            )
-                        },
-                        onNegativeDecrease = {
-                            vm.updatePlayerStatsDraft(
-                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_NEG)
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.RECHAZOS_POS
+                                )
                             )
                         }
                     )
@@ -1102,53 +1149,111 @@ private fun StatsSectionContent(
             accentLight = teamColorLight
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                FavorContraRow(
-                    title = "Falta",
-                    favorValue = draftValue(currentDraft, StatKey.FALTA_FAVOR),
-                    contraValue = draftValue(currentDraft, StatKey.FALTA_CONTRA),
-                    accentColor = teamColor,
-                    accentLight = teamColorLight,
-                    onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_FAVOR)) },
-                    onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_FAVOR)) },
-                    onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_CONTRA)) },
-                    onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_CONTRA)) }
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CompactSingleCounterCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Penal",
+                        value = draftValue(currentDraft, StatKey.PENAL_FAVOR),
+                        accentColor = teamColor,
+                        lightColor = teamColorLight,
+                        onIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.PENAL_FAVOR
+                                )
+                            )
+                        },
+                        onDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.PENAL_FAVOR
+                                )
+                            )
+                        }
+                    )
 
-                PositiveNegativeRow(
-                    title = "Corner",
-                    positiveValue = draftValue(currentDraft, StatKey.CORNER_POS),
-                    negativeValue = draftValue(currentDraft, StatKey.CORNER_NEG),
-                    positiveAccent = teamColor,
-                    positiveLight = teamColorLight,
-                    onPositiveIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_POS)) },
-                    onPositiveDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_POS)) },
-                    onNegativeIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_NEG)) },
-                    onNegativeDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_NEG)) }
-                )
+                    CompactSingleCounterCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Tiro libre",
+                        value = draftValue(currentDraft, StatKey.TIRO_LIBRE_FAVOR),
+                        accentColor = teamColor,
+                        lightColor = teamColorLight,
+                        onIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.TIRO_LIBRE_FAVOR
+                                )
+                            )
+                        },
+                        onDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.TIRO_LIBRE_FAVOR
+                                )
+                            )
+                        }
+                    )
+                }
 
-                FavorContraRow(
-                    title = "Tiro libre",
-                    favorValue = draftValue(currentDraft, StatKey.TIRO_LIBRE_FAVOR),
-                    contraValue = draftValue(currentDraft, StatKey.TIRO_LIBRE_CONTRA),
-                    accentColor = teamColor,
-                    accentLight = teamColorLight,
-                    onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_FAVOR)) },
-                    onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_FAVOR)) },
-                    onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_CONTRA)) },
-                    onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_CONTRA)) }
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CompactSingleCounterCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Corner",
+                        value = draftValue(currentDraft, StatKey.CORNER_POS),
+                        accentColor = teamColor,
+                        lightColor = teamColorLight,
+                        onIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.CORNER_POS
+                                )
+                            )
+                        },
+                        onDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.CORNER_POS
+                                )
+                            )
+                        }
+                    )
 
-                FavorContraRow(
-                    title = "Penal",
-                    favorValue = draftValue(currentDraft, StatKey.PENAL_FAVOR),
-                    contraValue = draftValue(currentDraft, StatKey.PENAL_CONTRA),
-                    accentColor = teamColor,
-                    accentLight = teamColorLight,
-                    onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_FAVOR)) },
-                    onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_FAVOR)) },
-                    onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_CONTRA)) },
-                    onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_CONTRA)) }
-                )
+                    CompactSingleCounterCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Falta",
+                        value = draftValue(currentDraft, StatKey.FALTA_FAVOR),
+                        accentColor = teamColor,
+                        lightColor = teamColorLight,
+                        onIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.FALTA_FAVOR
+                                )
+                            )
+                        },
+                        onDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.FALTA_FAVOR
+                                )
+                            )
+                        }
+                    )
+                }
             }
         }
     }
@@ -1700,8 +1805,8 @@ private fun draftValue(draft: PlayerStatsDraft, key: String): Int = when (key) {
     StatKey.REMATE12_POS -> draft.remate12Positivo
     StatKey.REMATE12_NEG -> draft.remate12Negativo
 
-    StatKey.BALON_RECOGIDO_FAVOR -> draft.balonRecogidoFavor
-    StatKey.BALON_RECOGIDO_CONTRA -> draft.balonRecogidoContra
+    StatKey.BALON_RECUPERADO -> draft.balonRecogidoFavor
+    StatKey.BALON_PERDIDO -> draft.balonRecogidoContra
     StatKey.PASES_BUENOS -> draft.pasesBuenos
     StatKey.PASES_MALOS -> draft.pasesMalos
     StatKey.CENTROS_POS -> draft.centrosPositivos
@@ -1733,8 +1838,8 @@ private fun increaseStat(draft: PlayerStatsDraft, key: String): PlayerStatsDraft
     StatKey.REMATE12_POS -> draft.copy(remate12Positivo = draft.remate12Positivo + 1)
     StatKey.REMATE12_NEG -> draft.copy(remate12Negativo = draft.remate12Negativo + 1)
 
-    StatKey.BALON_RECOGIDO_FAVOR -> draft.copy(balonRecogidoFavor = draft.balonRecogidoFavor + 1)
-    StatKey.BALON_RECOGIDO_CONTRA -> draft.copy(balonRecogidoContra = draft.balonRecogidoContra + 1)
+    StatKey.BALON_RECUPERADO -> draft.copy(balonRecogidoFavor = draft.balonRecogidoFavor + 1)
+    StatKey.BALON_PERDIDO -> draft.copy(balonRecogidoContra = draft.balonRecogidoContra + 1)
     StatKey.PASES_BUENOS -> draft.copy(pasesBuenos = draft.pasesBuenos + 1)
     StatKey.PASES_MALOS -> draft.copy(pasesMalos = draft.pasesMalos + 1)
     StatKey.CENTROS_POS -> draft.copy(centrosPositivos = draft.centrosPositivos + 1)
@@ -1766,8 +1871,8 @@ private fun decreaseStat(draft: PlayerStatsDraft, key: String): PlayerStatsDraft
     StatKey.REMATE12_POS -> draft.copy(remate12Positivo = (draft.remate12Positivo - 1).coerceAtLeast(0))
     StatKey.REMATE12_NEG -> draft.copy(remate12Negativo = (draft.remate12Negativo - 1).coerceAtLeast(0))
 
-    StatKey.BALON_RECOGIDO_FAVOR -> draft.copy(balonRecogidoFavor = (draft.balonRecogidoFavor - 1).coerceAtLeast(0))
-    StatKey.BALON_RECOGIDO_CONTRA -> draft.copy(balonRecogidoContra = (draft.balonRecogidoContra - 1).coerceAtLeast(0))
+    StatKey.BALON_RECUPERADO -> draft.copy(balonRecogidoFavor = (draft.balonRecogidoFavor - 1).coerceAtLeast(0))
+    StatKey.BALON_PERDIDO -> draft.copy(balonRecogidoContra = (draft.balonRecogidoContra - 1).coerceAtLeast(0))
     StatKey.PASES_BUENOS -> draft.copy(pasesBuenos = (draft.pasesBuenos - 1).coerceAtLeast(0))
     StatKey.PASES_MALOS -> draft.copy(pasesMalos = (draft.pasesMalos - 1).coerceAtLeast(0))
     StatKey.CENTROS_POS -> draft.copy(centrosPositivos = (draft.centrosPositivos - 1).coerceAtLeast(0))

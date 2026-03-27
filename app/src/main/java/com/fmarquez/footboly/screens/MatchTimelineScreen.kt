@@ -25,9 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
@@ -100,13 +97,22 @@ private val YellowCardColor = Color(0xFFF2C94C)
 private val RedCardColor = Color(0xFFE53935)
 
 private data class EventSummaryItem(
-    val type: String,
+    val originalType: String,
+    val displayType: String,
     val total: Int,
     val players: List<Pair<String, Int>>
 )
 
 private fun parseEventCount(detail: String): Int {
     return detail.substringAfter(": ", "").toIntOrNull() ?: 1
+}
+
+private fun normalizeEventType(type: String): String {
+    return when (type) {
+        "Balón Recogido a Favor" -> "Balón Recuperado"
+        "Balón Recogido en Contra" -> "Balón Perdido"
+        else -> type
+    }
 }
 
 private fun playerCardCounts(
@@ -127,9 +133,9 @@ private fun playerCardCounts(
 }
 
 private fun buildEventSummary(events: List<MatchEvent>): List<EventSummaryItem> {
-    val grouped = events.groupBy { it.type }
+    val grouped = events.groupBy { normalizeEventType(it.type) }
 
-    return grouped.map { (type, typeEvents) ->
+    return grouped.map { (displayType, typeEvents) ->
         val total = typeEvents.sumOf { parseEventCount(it.detail) }
 
         val players = typeEvents
@@ -141,11 +147,12 @@ private fun buildEventSummary(events: List<MatchEvent>): List<EventSummaryItem> 
             .sortedBy { it.first }
 
         EventSummaryItem(
-            type = type,
+            originalType = typeEvents.firstOrNull()?.type.orEmpty(),
+            displayType = displayType,
             total = total,
             players = players
         )
-    }.sortedBy { it.type }
+    }.sortedBy { it.displayType }
 }
 
 private fun teamGoals(match: MatchRecord): Int {
@@ -277,8 +284,8 @@ fun MatchTimelineScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = eventIcon(item.type),
-                                            contentDescription = item.type,
+                                            imageVector = eventIcon(item.originalType),
+                                            contentDescription = item.displayType,
                                             tint = matchColor,
                                             modifier = Modifier.size(20.dp)
                                         )
@@ -288,7 +295,7 @@ fun MatchTimelineScreen(
 
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = item.type,
+                                            text = item.displayType,
                                             fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                                             fontSize = 14.sp,
                                             color = TextPrimary
@@ -338,7 +345,7 @@ fun MatchTimelineScreen(
             shape = RoundedCornerShape(20.dp),
             title = {
                 Text(
-                    text = eventItem.type,
+                    text = eventItem.displayType,
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                     color = TextPrimary
                 )
@@ -385,8 +392,8 @@ fun MatchTimelineScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = eventIcon(eventItem.type),
-                                            contentDescription = eventItem.type,
+                                            imageVector = eventIcon(eventItem.originalType),
+                                            contentDescription = eventItem.displayType,
                                             tint = selectedMatchColor,
                                             modifier = Modifier.size(18.dp)
                                         )
@@ -1246,40 +1253,44 @@ fun MatchEventReportCard(
 }
 
 fun formatEventTitle(type: String, detail: String): String {
-    if (type == "Cambio") return "Cambio"
+    val normalizedType = normalizeEventType(type)
+    if (normalizedType == "Cambio") return "Cambio"
     val count = detail.substringAfter(": ", "").toIntOrNull()
-    return if (count != null) "$type - $count" else type
+    return if (count != null) "$normalizedType - $count" else normalizedType
 }
 
 fun eventIcon(type: String, detail: String = ""): ImageVector {
+    val normalizedType = normalizeEventType(type)
+
     return when {
-        type == "Cambio" || detail.startsWith("Entra ") -> Icons.Default.TrackChanges
+        normalizedType == "Cambio" || detail.startsWith("Entra ") -> Icons.Default.TrackChanges
 
-        type.startsWith("Gol") -> Icons.Default.SportsSoccer
-        type.startsWith("Tiro al Arco") -> Icons.Default.GpsFixed
-        type.startsWith("Participación de Gol") -> Icons.Default.Send
-        type.startsWith("Remate 1/2") -> Icons.Default.TrackChanges
+        normalizedType.startsWith("Gol") -> Icons.Default.SportsSoccer
+        normalizedType.startsWith("Tiro al Arco") -> Icons.Default.GpsFixed
+        normalizedType.startsWith("Participación de Gol") -> Icons.Default.Send
+        normalizedType.startsWith("Remate 1/2") -> Icons.Default.TrackChanges
 
-        type.startsWith("Balón Recogido") -> Icons.Default.Security
-        type.startsWith("Pases Buenos") -> Icons.Default.Send
-        type.startsWith("Pases Malos") -> Icons.Default.Close
-        type.startsWith("Centros +") -> Icons.Default.NorthEast
-        type.startsWith("Centros -") -> Icons.Default.SouthWest
-        type.startsWith("Rechazos +") -> Icons.Default.CheckCircle
-        type.startsWith("Rechazos -") -> Icons.Default.Cancel
+        normalizedType.startsWith("Balón Recuperado") -> Icons.Default.Security
+        normalizedType.startsWith("Balón Perdido") -> Icons.Default.Security
+        normalizedType.startsWith("Pases Buenos") -> Icons.Default.Send
+        normalizedType.startsWith("Pases Malos") -> Icons.Default.Close
+        normalizedType.startsWith("Centros +") -> Icons.Default.NorthEast
+        normalizedType.startsWith("Centros -") -> Icons.Default.SouthWest
+        normalizedType.startsWith("Rechazos +") -> Icons.Default.CheckCircle
+        normalizedType.startsWith("Rechazos -") -> Icons.Default.Cancel
 
-        type.startsWith("Falta a Favor") -> Icons.Default.CheckCircle
-        type.startsWith("Falta en Contra") -> Icons.Default.Cancel
-        type.startsWith("Corner +") -> Icons.Default.NorthEast
-        type.startsWith("Corner -") -> Icons.Default.SouthWest
-        type.startsWith("Tiro Libre a Favor") -> Icons.Default.RadioButtonChecked
-        type.startsWith("Tiro Libre en Contra") -> Icons.Default.Cancel
-        type.startsWith("Penal a Favor") -> Icons.Default.SportsSoccer
-        type.startsWith("Penal en Contra") -> Icons.Default.HighlightOff
+        normalizedType.startsWith("Falta a Favor") -> Icons.Default.CheckCircle
+        normalizedType.startsWith("Falta en Contra") -> Icons.Default.Cancel
+        normalizedType.startsWith("Corner +") -> Icons.Default.NorthEast
+        normalizedType.startsWith("Corner -") -> Icons.Default.SouthWest
+        normalizedType.startsWith("Tiro Libre a Favor") -> Icons.Default.RadioButtonChecked
+        normalizedType.startsWith("Tiro Libre en Contra") -> Icons.Default.Cancel
+        normalizedType.startsWith("Penal a Favor") -> Icons.Default.SportsSoccer
+        normalizedType.startsWith("Penal en Contra") -> Icons.Default.HighlightOff
 
-        type.startsWith("Doble Amarilla") -> Icons.Default.Warning
-        type.startsWith("Amarilla") -> Icons.Default.Warning
-        type.startsWith("Roja") -> Icons.Default.HighlightOff
+        normalizedType.startsWith("Doble Amarilla") -> Icons.Default.Warning
+        normalizedType.startsWith("Amarilla") -> Icons.Default.Warning
+        normalizedType.startsWith("Roja") -> Icons.Default.HighlightOff
 
         else -> Icons.Default.SportsSoccer
     }
