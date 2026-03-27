@@ -22,10 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.filled.Star
@@ -57,6 +54,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -108,6 +106,12 @@ private object StatKey {
     const val ROJA = "ROJA"
 }
 
+private enum class StatsSection {
+    GOL,
+    JUEGO,
+    FALTAS
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerStatsScreen(
@@ -129,9 +133,7 @@ fun PlayerStatsScreen(
         else -> ""
     }
 
-    var expandGol by rememberSaveable { mutableStateOf(true) }
-    var expandJuego by rememberSaveable { mutableStateOf(false) }
-    var expandDetenido by rememberSaveable { mutableStateOf(false) }
+    var selectedSection by rememberSaveable { mutableStateOf(StatsSection.GOL) }
 
     val currentDraft = vm.getOrCreatePlayerStatsDraft(player.id)
 
@@ -144,6 +146,78 @@ fun PlayerStatsScreen(
         currentDraft.amarilla >= 2 -> "Doble Amarilla"
         isMatchExpelled -> "Expulsado"
         else -> ""
+    }
+
+    var showCardDialog by remember { mutableStateOf(false) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
+    var pendingSelection by remember { mutableStateOf<String?>(null) }
+
+    val yellowCount = currentDraft.amarilla.coerceIn(0, 2)
+    val redCount = currentDraft.roja.coerceIn(0, 1)
+
+    fun applyCardSelection(selection: String) {
+        val latestDraft = vm.getOrCreatePlayerStatsDraft(player.id)
+
+        when (selection) {
+            "AMARILLA" -> {
+                val updated = latestDraft.copy(
+                    amarilla = (latestDraft.amarilla + 1).coerceAtMost(2)
+                )
+                vm.updatePlayerStatsDraft(updated)
+
+                if (updated.amarilla >= 2 && !isEditingFinishedMatch) {
+                    vm.savePlayerStatsDraftAsEvents(player.id)
+                    vm.expelPlayerByCard(player, "Doble Amarilla")
+                    navHostController.popBackStack()
+                }
+            }
+
+            "DOBLE_AMARILLA" -> {
+                val updated = latestDraft.copy(
+                    amarilla = 2,
+                    roja = 0
+                )
+                vm.updatePlayerStatsDraft(updated)
+
+                if (!isEditingFinishedMatch) {
+                    vm.savePlayerStatsDraftAsEvents(player.id)
+                    vm.expelPlayerByCard(player, "Doble Amarilla")
+                    navHostController.popBackStack()
+                }
+            }
+
+            "ROJA" -> {
+                val updated = latestDraft.copy(
+                    roja = 1
+                )
+                vm.updatePlayerStatsDraft(updated)
+
+                if (!isEditingFinishedMatch) {
+                    vm.savePlayerStatsDraftAsEvents(player.id)
+                    vm.expelPlayerByCard(player, "Tarjeta Roja")
+                    navHostController.popBackStack()
+                }
+            }
+        }
+    }
+
+    fun needsConfirmation(selection: String): Boolean {
+        val latestDraft = vm.getOrCreatePlayerStatsDraft(player.id)
+        return when (selection) {
+            "ROJA" -> true
+            "DOBLE_AMARILLA" -> true
+            "AMARILLA" -> latestDraft.amarilla + 1 >= 2
+            else -> false
+        }
+    }
+
+    fun confirmationText(selection: String): String {
+        return when (selection) {
+            "ROJA" -> "¿Estás seguro de asignarle Tarjeta Roja? Al hacer esto el jugador quedará bloqueado."
+            "DOBLE_AMARILLA" -> "¿Estás seguro de asignarle Doble Amarilla? Al hacer esto el jugador quedará bloqueado."
+            "AMARILLA" -> "¿Estás seguro de asignarle esta Amarilla? Con esta cantidad el jugador quedará bloqueado."
+            else -> ""
+        }
     }
 
     Scaffold(
@@ -217,66 +291,31 @@ fun PlayerStatsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, BorderColor, RoundedCornerShape(16.dp)),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = SurfaceColor),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(teamColorLight),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(team.logoEmoji, fontSize = 26.sp)
-                    }
+            PlayerHeaderStatsCard(
+                player = player,
+                role = role,
+                teamEmoji = team.logoEmoji,
+                teamColor = teamColor,
+                teamColorLight = teamColorLight,
+                isEditingFinishedMatch = isEditingFinishedMatch,
+                yellowCount = yellowCount,
+                redCount = redCount,
+                canAddCard = !isPlayerExpelled,
+                onCardsClick = { showCardDialog = true }
+            )
 
-                    Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = player.name,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 17.sp,
-                            color = TextPrimary
-                        )
+            QuickStatsBlocksRow(
+                teamColor = teamColor,
+                teamColorLight = teamColorLight,
+                selectedSection = selectedSection,
+                onGolClick = { selectedSection = StatsSection.GOL },
+                onJuegoClick = { selectedSection = StatsSection.JUEGO },
+                onDetenidoClick = { selectedSection = StatsSection.FALTAS }
+            )
 
-                        Text(
-                            text = if (role.isNotEmpty()) "$role · N° ${player.number}" else "N° ${player.number}",
-                            fontSize = 13.sp,
-                            color = TextSecondary
-                        )
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(if (isEditingFinishedMatch) Color(0xFFFFF3E0) else teamColorLight)
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text = if (isEditingFinishedMatch) "Edición" else "En curso",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (isEditingFinishedMatch) Color(0xFFE65100) else teamColor
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             if (isPlayerExpelled) {
                 Row(
@@ -315,436 +354,25 @@ fun PlayerStatsScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            ExpandableStatsSection(
-                title = "Gol",
-                icon = Icons.Default.SportsSoccer,
-                expanded = expandGol,
-                accentColor = teamColor,
-                accentLight = teamColorLight,
-                onToggle = { expandGol = !expandGol }
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FavorContraRow(
-                        title = "Gol",
-                        favorValue = draftValue(currentDraft, StatKey.GOL_FAVOR),
-                        contraValue = draftValue(currentDraft, StatKey.GOL_CONTRA),
-                        accentColor = teamColor,
-                        accentLight = teamColorLight,
-                        onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_FAVOR)) },
-                        onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_FAVOR)) },
-                        onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_CONTRA)) },
-                        onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_CONTRA)) }
-                    )
-
-                    PositiveNegativeRow(
-                        title = "Tiro al arco",
-                        positiveValue = draftValue(currentDraft, StatKey.TIRO_ARCO_POS),
-                        negativeValue = draftValue(currentDraft, StatKey.TIRO_ARCO_NEG),
-                        positiveAccent = teamColor,
-                        positiveLight = teamColorLight,
-                        onPositiveIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_ARCO_POS)) },
-                        onPositiveDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_ARCO_POS)) },
-                        onNegativeIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_ARCO_NEG)) },
-                        onNegativeDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_ARCO_NEG)) }
-                    )
-
-                    FavorContraRow(
-                        title = "Participación de gol",
-                        favorValue = draftValue(currentDraft, StatKey.PART_GOL_FAVOR),
-                        contraValue = draftValue(currentDraft, StatKey.PART_GOL_CONTRA),
-                        accentColor = teamColor,
-                        accentLight = teamColorLight,
-                        onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_FAVOR)) },
-                        onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_FAVOR)) },
-                        onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_CONTRA)) },
-                        onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_CONTRA)) }
-                    )
-
-                    PositiveNegativeRow(
-                        title = "Remate 1/2",
-                        positiveValue = draftValue(currentDraft, StatKey.REMATE12_POS),
-                        negativeValue = draftValue(currentDraft, StatKey.REMATE12_NEG),
-                        positiveAccent = teamColor,
-                        positiveLight = teamColorLight,
-                        onPositiveIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.REMATE12_POS)) },
-                        onPositiveDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.REMATE12_POS)) },
-                        onNegativeIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.REMATE12_NEG)) },
-                        onNegativeDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.REMATE12_NEG)) }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            ExpandableStatsSection(
-                title = "Recuperación / Juego",
-                icon = Icons.Default.Star,
-                expanded = expandJuego,
-                accentColor = teamColor,
-                accentLight = teamColorLight,
-                onToggle = { expandJuego = !expandJuego }
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FavorContraRow(
-                        title = "Balón recogido",
-                        favorValue = draftValue(currentDraft, StatKey.BALON_RECOGIDO_FAVOR),
-                        contraValue = draftValue(currentDraft, StatKey.BALON_RECOGIDO_CONTRA),
-                        accentColor = teamColor,
-                        accentLight = teamColorLight,
-                        onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_FAVOR)) },
-                        onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_FAVOR)) },
-                        onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_CONTRA)) },
-                        onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_CONTRA)) }
-                    )
-
-                    GoodBadRow(
-                        title = "Pases",
-                        positiveText = "Buenos",
-                        negativeText = "Malos",
-                        positiveValue = draftValue(currentDraft, StatKey.PASES_BUENOS),
-                        negativeValue = draftValue(currentDraft, StatKey.PASES_MALOS),
-                        positiveAccent = teamColor,
-                        positiveLight = teamColorLight,
-                        onPositiveIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_BUENOS)) },
-                        onPositiveDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_BUENOS)) },
-                        onNegativeIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_MALOS)) },
-                        onNegativeDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_MALOS)) }
-                    )
-
-                    PositiveNegativeRow(
-                        title = "Centros",
-                        positiveValue = draftValue(currentDraft, StatKey.CENTROS_POS),
-                        negativeValue = draftValue(currentDraft, StatKey.CENTROS_NEG),
-                        positiveAccent = teamColor,
-                        positiveLight = teamColorLight,
-                        onPositiveIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_POS)) },
-                        onPositiveDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_POS)) },
-                        onNegativeIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_NEG)) },
-                        onNegativeDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_NEG)) }
-                    )
-
-                    PositiveNegativeRow(
-                        title = "Rechazos",
-                        positiveValue = draftValue(currentDraft, StatKey.RECHAZOS_POS),
-                        negativeValue = draftValue(currentDraft, StatKey.RECHAZOS_NEG),
-                        positiveAccent = teamColor,
-                        positiveLight = teamColorLight,
-                        onPositiveIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_POS)) },
-                        onPositiveDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_POS)) },
-                        onNegativeIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_NEG)) },
-                        onNegativeDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_NEG)) }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            ExpandableStatsSection(
-                title = "Faltas / Balón detenido",
-                icon = Icons.Default.Star,
-                expanded = expandDetenido,
-                accentColor = teamColor,
-                accentLight = teamColorLight,
-                onToggle = { expandDetenido = !expandDetenido }
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FavorContraRow(
-                        title = "Falta",
-                        favorValue = draftValue(currentDraft, StatKey.FALTA_FAVOR),
-                        contraValue = draftValue(currentDraft, StatKey.FALTA_CONTRA),
-                        accentColor = teamColor,
-                        accentLight = teamColorLight,
-                        onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_FAVOR)) },
-                        onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_FAVOR)) },
-                        onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_CONTRA)) },
-                        onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_CONTRA)) }
-                    )
-
-                    PositiveNegativeRow(
-                        title = "Corner",
-                        positiveValue = draftValue(currentDraft, StatKey.CORNER_POS),
-                        negativeValue = draftValue(currentDraft, StatKey.CORNER_NEG),
-                        positiveAccent = teamColor,
-                        positiveLight = teamColorLight,
-                        onPositiveIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_POS)) },
-                        onPositiveDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_POS)) },
-                        onNegativeIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_NEG)) },
-                        onNegativeDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_NEG)) }
-                    )
-
-                    FavorContraRow(
-                        title = "Tiro libre",
-                        favorValue = draftValue(currentDraft, StatKey.TIRO_LIBRE_FAVOR),
-                        contraValue = draftValue(currentDraft, StatKey.TIRO_LIBRE_CONTRA),
-                        accentColor = teamColor,
-                        accentLight = teamColorLight,
-                        onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_FAVOR)) },
-                        onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_FAVOR)) },
-                        onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_CONTRA)) },
-                        onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_CONTRA)) }
-                    )
-
-                    FavorContraRow(
-                        title = "Penal",
-                        favorValue = draftValue(currentDraft, StatKey.PENAL_FAVOR),
-                        contraValue = draftValue(currentDraft, StatKey.PENAL_CONTRA),
-                        accentColor = teamColor,
-                        accentLight = teamColorLight,
-                        onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_FAVOR)) },
-                        onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_FAVOR)) },
-                        onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_CONTRA)) },
-                        onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_CONTRA)) }
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            CardStatsSection(
+            StatsSectionContent(
+                selectedSection = selectedSection,
+                currentDraft = currentDraft,
                 player = player,
                 vm = vm,
-                currentDraft = currentDraft,
-                canAddCard = !isPlayerExpelled,
-                isEditingFinishedMatch = isEditingFinishedMatch,
                 teamColor = teamColor,
-                teamColorLight = teamColorLight,
-                expulsionReason = expulsionReason,
-                onConfirmedBlockingCard = {
-                    navHostController.popBackStack()
-                }
+                teamColorLight = teamColorLight
             )
 
             Spacer(modifier = Modifier.height(20.dp))
         }
     }
-}
 
-@Composable
-private fun CardStatsSection(
-    player: Player,
-    vm: FutbolViewModel,
-    currentDraft: PlayerStatsDraft,
-    canAddCard: Boolean,
-    isEditingFinishedMatch: Boolean,
-    teamColor: Color,
-    teamColorLight: Color,
-    expulsionReason: String,
-    onConfirmedBlockingCard: () -> Unit
-) {
-    var showDialog by remember { mutableStateOf(false) }
-    var showConfirmDialog by remember { mutableStateOf(false) }
-    var pendingSelection by remember { mutableStateOf<String?>(null) }
-
-    val yellowCount = currentDraft.amarilla.coerceIn(0, 2)
-    val redCount = currentDraft.roja.coerceIn(0, 1)
-    val isPlayerExpelled = yellowCount >= 2 || redCount > 0
-
-    fun applyCardSelection(selection: String) {
-        val latestDraft = vm.getOrCreatePlayerStatsDraft(player.id)
-
-        when (selection) {
-            "AMARILLA" -> {
-                val updated = latestDraft.copy(
-                    amarilla = (latestDraft.amarilla + 1).coerceAtMost(2)
-                )
-                vm.updatePlayerStatsDraft(updated)
-
-                if (updated.amarilla >= 2 && !isEditingFinishedMatch) {
-                    vm.savePlayerStatsDraftAsEvents(player.id)
-                    vm.expelPlayerByCard(player, "Doble Amarilla")
-                    onConfirmedBlockingCard()
-                }
-            }
-
-            "DOBLE_AMARILLA" -> {
-                val updated = latestDraft.copy(
-                    amarilla = 2,
-                    roja = 0
-                )
-                vm.updatePlayerStatsDraft(updated)
-
-                if (!isEditingFinishedMatch) {
-                    vm.savePlayerStatsDraftAsEvents(player.id)
-                    vm.expelPlayerByCard(player, "Doble Amarilla")
-                    onConfirmedBlockingCard()
-                }
-            }
-
-            "ROJA" -> {
-                val updated = latestDraft.copy(
-                    roja = 1
-                )
-                vm.updatePlayerStatsDraft(updated)
-
-                if (!isEditingFinishedMatch) {
-                    vm.savePlayerStatsDraftAsEvents(player.id)
-                    vm.expelPlayerByCard(player, "Tarjeta Roja")
-                    onConfirmedBlockingCard()
-                }
-            }
-        }
-    }
-
-    fun needsConfirmation(selection: String): Boolean {
-        val latestDraft = vm.getOrCreatePlayerStatsDraft(player.id)
-        return when (selection) {
-            "ROJA" -> true
-            "DOBLE_AMARILLA" -> true
-            "AMARILLA" -> latestDraft.amarilla + 1 >= 2
-            else -> false
-        }
-    }
-
-    fun confirmationText(selection: String): String {
-        return when (selection) {
-            "ROJA" -> "¿Estás seguro de asignarle Tarjeta Roja? Al hacer esto el jugador quedará bloqueado."
-            "DOBLE_AMARILLA" -> "¿Estás seguro de asignarle Doble Amarilla? Al hacer esto el jugador quedará bloqueado."
-            "AMARILLA" -> "¿Estás seguro de asignarle esta Amarilla? Con esta cantidad el jugador quedará bloqueado."
-            else -> ""
-        }
-    }
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, BorderColor, RoundedCornerShape(18.dp)),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(42.dp)
-                        .clip(CircleShape)
-                        .background(if (isPlayerExpelled) ErrorRedLight else teamColorLight),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = if (isPlayerExpelled) ErrorRed else teamColor,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Text(
-                    text = "Tarjetas",
-                    modifier = Modifier.weight(1f),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = if (isPlayerExpelled) ErrorRed else TextPrimary
-                )
-
-                if (canAddCard && !isPlayerExpelled) {
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(teamColor)
-                            .clickable { showDialog = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Agregar tarjeta",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    repeat(yellowCount) {
-                        FootballCardVisual(YellowCardColor)
-                    }
-
-                    repeat(redCount) {
-                        FootballCardVisual(ErrorRed)
-                    }
-
-                    if (yellowCount == 0 && redCount == 0) {
-                        repeat(3) {
-                            FootballCardVisual(BorderColor.copy(alpha = 0.35f))
-                        }
-                    }
-                }
-
-                when {
-                    isPlayerExpelled && expulsionReason.isNotEmpty() -> {
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = "Expulsado",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = ErrorRed
-                            )
-                            Text(
-                                text = expulsionReason,
-                                fontSize = 11.sp,
-                                color = ErrorRed.copy(alpha = 0.75f)
-                            )
-                        }
-                    }
-
-                    yellowCount == 1 -> {
-                        Text(
-                            text = "1 Amarilla",
-                            fontSize = 12.sp,
-                            color = YellowCardColor,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    yellowCount == 2 -> {
-                        Text(
-                            text = "2 Amarillas",
-                            fontSize = 12.sp,
-                            color = ErrorRed,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    redCount == 1 -> {
-                        Text(
-                            text = "1 Roja",
-                            fontSize = 12.sp,
-                            color = ErrorRed,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    if (showDialog) {
+    if (showCardDialog) {
         CardSelectionDialog(
             currentYellowCards = yellowCount,
-            onDismiss = { showDialog = false },
+            onDismiss = { showCardDialog = false },
             onSelectYellow = {
-                showDialog = false
+                showCardDialog = false
                 if (needsConfirmation("AMARILLA")) {
                     pendingSelection = "AMARILLA"
                     showConfirmDialog = true
@@ -753,12 +381,12 @@ private fun CardStatsSection(
                 }
             },
             onSelectDoubleYellow = {
-                showDialog = false
+                showCardDialog = false
                 pendingSelection = "DOBLE_AMARILLA"
                 showConfirmDialog = true
             },
             onSelectRed = {
-                showDialog = false
+                showCardDialog = false
                 pendingSelection = "ROJA"
                 showConfirmDialog = true
             }
@@ -804,6 +432,265 @@ private fun CardStatsSection(
         )
     }
 }
+
+@Composable
+private fun PlayerHeaderStatsCard(
+    player: Player,
+    role: String,
+    teamEmoji: String,
+    teamColor: Color,
+    teamColorLight: Color,
+    isEditingFinishedMatch: Boolean,
+    yellowCount: Int,
+    redCount: Int,
+    canAddCard: Boolean,
+    onCardsClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, BorderColor, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(teamColorLight),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(teamEmoji, fontSize = 26.sp)
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = player.name,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp,
+                    color = TextPrimary
+                )
+
+                Text(
+                    text = if (role.isNotEmpty()) "$role · N° ${player.number}" else "N° ${player.number}",
+                    fontSize = 13.sp,
+                    color = TextSecondary
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(if (isEditingFinishedMatch) Color(0xFFFFF3E0) else teamColorLight)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = if (isEditingFinishedMatch) "Edición" else "En curso",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isEditingFinishedMatch) Color(0xFFE65100) else teamColor
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                MiniCardsIndicator(
+                    yellowCount = yellowCount,
+                    redCount = redCount
+                )
+
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (canAddCard) teamColor else Color(0xFFE7E7E7))
+                        .clickable(enabled = canAddCard, onClick = onCardsClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = "Tarjetas",
+                        tint = if (canAddCard) Color.White else Color(0xFF9A9A9A),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniCardsIndicator(
+    yellowCount: Int,
+    redCount: Int
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            repeat(yellowCount) {
+                FootballCardVisual(
+                    color = YellowCardColor,
+                    width = 14,
+                    height = 20
+                )
+            }
+
+            repeat(redCount) {
+                FootballCardVisual(
+                    color = ErrorRed,
+                    width = 14,
+                    height = 20
+                )
+            }
+
+            if (yellowCount == 0 && redCount == 0) {
+                repeat(2) {
+                    FootballCardVisual(
+                        color = BorderColor.copy(alpha = 0.35f),
+                        width = 14,
+                        height = 20
+                    )
+                }
+            }
+        }
+
+        Text(
+            text = when {
+                redCount > 0 -> "Roja"
+                yellowCount == 2 -> "2 Amarillas"
+                yellowCount == 1 -> "1 Amarilla"
+                else -> "Sin tarjetas"
+            },
+            fontSize = 10.sp,
+            color = TextSecondary,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+private fun QuickStatsBlocksRow(
+    teamColor: Color,
+    teamColorLight: Color,
+    selectedSection: StatsSection,
+    onGolClick: () -> Unit,
+    onJuegoClick: () -> Unit,
+    onDetenidoClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        QuickStatBlock(
+            modifier = Modifier.weight(1f),
+            title = "Gol",
+            icon = Icons.Default.SportsSoccer,
+            isSelected = selectedSection == StatsSection.GOL,
+            accentColor = teamColor,
+            accentLight = teamColorLight,
+            onClick = onGolClick
+        )
+
+        QuickStatBlock(
+            modifier = Modifier.weight(1f),
+            title = "Juego",
+            icon = Icons.Default.Star,
+            isSelected = selectedSection == StatsSection.JUEGO,
+            accentColor = teamColor,
+            accentLight = teamColorLight,
+            onClick = onJuegoClick
+        )
+
+        QuickStatBlock(
+            modifier = Modifier.weight(1f),
+            title = "Faltas",
+            icon = Icons.Default.Warning,
+            isSelected = selectedSection == StatsSection.FALTAS,
+            accentColor = teamColor,
+            accentLight = teamColorLight,
+            onClick = onDetenidoClick
+        )
+    }
+}
+
+@Composable
+private fun QuickStatBlock(
+    modifier: Modifier = Modifier,
+    title: String,
+    icon: ImageVector,
+    isSelected: Boolean,
+    accentColor: Color,
+    accentLight: Color,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .border(
+                1.dp,
+                if (isSelected) accentColor.copy(alpha = 0.35f) else BorderColor,
+                RoundedCornerShape(14.dp)
+            )
+            .clickable { onClick() },
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) accentLight else SurfaceColor
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 14.dp, horizontal = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(if (isSelected) accentColor else BorderColor.copy(alpha = 0.45f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = if (isSelected) Color.White else TextSecondary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isSelected) accentColor else TextPrimary
+            )
+        }
+    }
+}
+
 @Composable
 private fun FootballCardVisual(
     color: Color,
@@ -931,13 +818,409 @@ private fun CardSelectionDialog(
 }
 
 @Composable
-private fun ExpandableStatsSection(
+private fun StatsSectionContent(
+    selectedSection: StatsSection,
+    currentDraft: PlayerStatsDraft,
+    player: Player,
+    vm: FutbolViewModel,
+    teamColor: Color,
+    teamColorLight: Color
+) {
+    when (selectedSection) {
+        StatsSection.GOL -> StatsContentCard(
+            title = "Gol",
+            icon = Icons.Default.SportsSoccer,
+            accentColor = teamColor,
+            accentLight = teamColorLight
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CompactFavorContraCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Gol",
+                        favorValue = draftValue(currentDraft, StatKey.GOL_FAVOR),
+                        contraValue = draftValue(currentDraft, StatKey.GOL_CONTRA),
+                        favorAccent = teamColor,
+                        favorLight = teamColorLight,
+                        contraAccent = ErrorRed,
+                        contraLight = ErrorRedLight,
+                        leftLabel = "Contra",
+                        rightLabel = "Favor",
+                        onFavorIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_FAVOR)
+                            )
+                        },
+                        onFavorDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_FAVOR)
+                            )
+                        },
+                        onContraIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_CONTRA)
+                            )
+                        },
+                        onContraDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.GOL_CONTRA)
+                            )
+                        }
+                    )
+
+                    CompactFavorContraCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Participación Gol",
+                        favorValue = draftValue(currentDraft, StatKey.PART_GOL_FAVOR),
+                        contraValue = draftValue(currentDraft, StatKey.PART_GOL_CONTRA),
+                        favorAccent = teamColor,
+                        favorLight = teamColorLight,
+                        contraAccent = ErrorRed,
+                        contraLight = ErrorRedLight,
+                        leftLabel = "Contra",
+                        rightLabel = "Favor",
+                        onFavorIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_FAVOR)
+                            )
+                        },
+                        onFavorDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_FAVOR)
+                            )
+                        },
+                        onContraIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_CONTRA)
+                            )
+                        },
+                        onContraDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PART_GOL_CONTRA)
+                            )
+                        }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CompactSingleCounterCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Tiro Arco",
+                        value = draftValue(currentDraft, StatKey.TIRO_ARCO_POS),
+                        accentColor = teamColor,
+                        lightColor = teamColorLight,
+                        onIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_ARCO_POS)
+                            )
+                        },
+                        onDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_ARCO_POS)
+                            )
+                        }
+                    )
+
+                    CompactSingleCounterCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Remate 1/2",
+                        value = draftValue(currentDraft, StatKey.REMATE12_POS),
+                        accentColor = teamColor,
+                        lightColor = teamColorLight,
+                        onIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.REMATE12_POS)
+                            )
+                        },
+                        onDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.REMATE12_POS)
+                            )
+                        }
+                    )
+                }
+            }
+        }
+
+        StatsSection.JUEGO -> StatsContentCard(
+            title = "Recuperación / Juego",
+            icon = Icons.Default.Star,
+            accentColor = teamColor,
+            accentLight = teamColorLight
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CompactFavorContraCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Balón recuperado o perdido",
+                        favorValue = draftValue(currentDraft, StatKey.BALON_RECOGIDO_FAVOR),
+                        contraValue = draftValue(currentDraft, StatKey.BALON_RECOGIDO_CONTRA),
+                        favorAccent = teamColor,
+                        favorLight = teamColorLight,
+                        contraAccent = ErrorRed,
+                        contraLight = ErrorRedLight,
+                        leftLabel = "Perdido",
+                        rightLabel = "Recuperado",
+                        onFavorIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_FAVOR)
+                            )
+                        },
+                        onFavorDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_FAVOR)
+                            )
+                        },
+                        onContraIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_CONTRA)
+                            )
+                        },
+                        onContraDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.BALON_RECOGIDO_CONTRA)
+                            )
+                        }
+                    )
+
+                    CompactFavorContraCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Pases",
+                        favorValue = draftValue(currentDraft, StatKey.PASES_BUENOS),
+                        contraValue = draftValue(currentDraft, StatKey.PASES_MALOS),
+                        favorAccent = teamColor,
+                        favorLight = teamColorLight,
+                        contraAccent = ErrorRed,
+                        contraLight = ErrorRedLight,
+                        leftLabel = "Malo",
+                        rightLabel = "Bueno",
+                        onFavorIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_BUENOS)
+                            )
+                        },
+                        onFavorDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_BUENOS)
+                            )
+                        },
+                        onContraIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_MALOS)
+                            )
+                        },
+                        onContraDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PASES_MALOS)
+                            )
+                        }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CompactPositiveNegativeCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Centro",
+                        positiveValue = draftValue(currentDraft, StatKey.CENTROS_POS),
+                        negativeValue = draftValue(currentDraft, StatKey.CENTROS_NEG),
+                        positiveAccent = teamColor,
+                        positiveLight = teamColorLight,
+                        negativeAccent = ErrorRed,
+                        negativeLight = ErrorRedLight,
+                        onPositiveIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_POS)
+                            )
+                        },
+                        onPositiveDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_POS)
+                            )
+                        },
+                        onNegativeIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_NEG)
+                            )
+                        },
+                        onNegativeDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CENTROS_NEG)
+                            )
+                        }
+                    )
+
+                    CompactPositiveNegativeCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Rechazo",
+                        positiveValue = draftValue(currentDraft, StatKey.RECHAZOS_POS),
+                        negativeValue = draftValue(currentDraft, StatKey.RECHAZOS_NEG),
+                        positiveAccent = teamColor,
+                        positiveLight = teamColorLight,
+                        negativeAccent = ErrorRed,
+                        negativeLight = ErrorRedLight,
+                        onPositiveIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_POS)
+                            )
+                        },
+                        onPositiveDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_POS)
+                            )
+                        },
+                        onNegativeIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_NEG)
+                            )
+                        },
+                        onNegativeDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.RECHAZOS_NEG)
+                            )
+                        }
+                    )
+                }
+            }
+        }
+
+        StatsSection.FALTAS -> StatsContentCard(
+            title = "Faltas / Balón detenido",
+            icon = Icons.Default.Warning,
+            accentColor = teamColor,
+            accentLight = teamColorLight
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                FavorContraRow(
+                    title = "Falta",
+                    favorValue = draftValue(currentDraft, StatKey.FALTA_FAVOR),
+                    contraValue = draftValue(currentDraft, StatKey.FALTA_CONTRA),
+                    accentColor = teamColor,
+                    accentLight = teamColorLight,
+                    onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_FAVOR)) },
+                    onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_FAVOR)) },
+                    onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_CONTRA)) },
+                    onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.FALTA_CONTRA)) }
+                )
+
+                PositiveNegativeRow(
+                    title = "Corner",
+                    positiveValue = draftValue(currentDraft, StatKey.CORNER_POS),
+                    negativeValue = draftValue(currentDraft, StatKey.CORNER_NEG),
+                    positiveAccent = teamColor,
+                    positiveLight = teamColorLight,
+                    onPositiveIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_POS)) },
+                    onPositiveDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_POS)) },
+                    onNegativeIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_NEG)) },
+                    onNegativeDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.CORNER_NEG)) }
+                )
+
+                FavorContraRow(
+                    title = "Tiro libre",
+                    favorValue = draftValue(currentDraft, StatKey.TIRO_LIBRE_FAVOR),
+                    contraValue = draftValue(currentDraft, StatKey.TIRO_LIBRE_CONTRA),
+                    accentColor = teamColor,
+                    accentLight = teamColorLight,
+                    onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_FAVOR)) },
+                    onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_FAVOR)) },
+                    onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_CONTRA)) },
+                    onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.TIRO_LIBRE_CONTRA)) }
+                )
+
+                FavorContraRow(
+                    title = "Penal",
+                    favorValue = draftValue(currentDraft, StatKey.PENAL_FAVOR),
+                    contraValue = draftValue(currentDraft, StatKey.PENAL_CONTRA),
+                    accentColor = teamColor,
+                    accentLight = teamColorLight,
+                    onFavorIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_FAVOR)) },
+                    onFavorDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_FAVOR)) },
+                    onContraIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_CONTRA)) },
+                    onContraDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.PENAL_CONTRA)) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactSingleCounterCard(
+    modifier: Modifier = Modifier,
+    title: String,
+    value: Int,
+    accentColor: Color,
+    lightColor: Color,
+    onIncrease: () -> Unit,
+    onDecrease: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = title,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = TextPrimary
+            )
+
+            Text(
+                text = value.toString(),
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CompactActionButton(
+                    text = "−",
+                    accentColor = accentColor,
+                    lightColor = lightColor,
+                    onClick = onDecrease
+                )
+
+                CompactActionButton(
+                    text = "+",
+                    accentColor = accentColor,
+                    lightColor = lightColor,
+                    onClick = onIncrease
+                )
+            }
+        }
+    }
+}
+@Composable
+private fun StatsContentCard(
     title: String,
     icon: ImageVector,
-    expanded: Boolean,
     accentColor: Color,
     accentLight: Color,
-    onToggle: () -> Unit,
     content: @Composable () -> Unit
 ) {
     Card(
@@ -951,7 +1234,6 @@ private fun ExpandableStatsSection(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { onToggle() }
                 .padding(horizontal = 16.dp, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -962,36 +1244,239 @@ private fun ExpandableStatsSection(
                     .background(accentLight),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = title, tint = accentColor, modifier = Modifier.size(20.dp))
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = accentColor,
+                    modifier = Modifier.size(20.dp)
+                )
             }
 
             Spacer(modifier = Modifier.width(12.dp))
 
             Text(
                 text = title,
-                modifier = Modifier.weight(1f),
                 fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
+                fontSize = 15.sp,
+                color = TextPrimary
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 16.dp)
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun CompactFavorContraCard(
+    modifier: Modifier = Modifier,
+    title: String,
+    favorValue: Int,
+    contraValue: Int,
+    favorAccent: Color,
+    favorLight: Color,
+    contraAccent: Color,
+    contraLight: Color,
+    leftLabel: String = "Contra",
+    rightLabel: String = "Favor",
+    onFavorIncrease: () -> Unit,
+    onFavorDecrease: () -> Unit,
+    onContraIncrease: () -> Unit,
+    onContraDecrease: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = title,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
                 color = TextPrimary
             )
 
-            Icon(
-                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                contentDescription = null,
-                tint = TextSecondary
-            )
-        }
-
-        if (expanded) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .padding(bottom = 16.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                content()
+                CompactCounterColumn(
+                    modifier = Modifier.weight(1f),
+                    label = leftLabel,
+                    value = contraValue,
+                    accentColor = contraAccent,
+                    lightColor = contraLight,
+                    onIncrease = onContraIncrease,
+                    onDecrease = onContraDecrease
+                )
+
+                CompactCounterColumn(
+                    modifier = Modifier.weight(1f),
+                    label = rightLabel,
+                    value = favorValue,
+                    accentColor = favorAccent,
+                    lightColor = favorLight,
+                    onIncrease = onFavorIncrease,
+                    onDecrease = onFavorDecrease
+                )
             }
         }
+    }
+}
+@Composable
+private fun CompactPositiveNegativeCard(
+    modifier: Modifier = Modifier,
+    title: String,
+    positiveValue: Int,
+    negativeValue: Int,
+    positiveAccent: Color,
+    positiveLight: Color,
+    negativeAccent: Color,
+    negativeLight: Color,
+    onPositiveIncrease: () -> Unit,
+    onPositiveDecrease: () -> Unit,
+    onNegativeIncrease: () -> Unit,
+    onNegativeDecrease: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = title,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = TextPrimary
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CompactCounterColumn(
+                    modifier = Modifier.weight(1f),
+                    label = "−",
+                    value = negativeValue,
+                    accentColor = negativeAccent,
+                    lightColor = negativeLight,
+                    onIncrease = onNegativeIncrease,
+                    onDecrease = onNegativeDecrease
+                )
+
+                CompactCounterColumn(
+                    modifier = Modifier.weight(1f),
+                    label = "+",
+                    value = positiveValue,
+                    accentColor = positiveAccent,
+                    lightColor = positiveLight,
+                    onIncrease = onPositiveIncrease,
+                    onDecrease = onPositiveDecrease
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactCounterColumn(
+    modifier: Modifier = Modifier,
+    label: String,
+    value: Int,
+    accentColor: Color,
+    lightColor: Color,
+    onIncrease: () -> Unit,
+    onDecrease: () -> Unit
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = accentColor,
+            textAlign = TextAlign.Center
+        )
+
+        Text(
+            text = value.toString(),
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = TextPrimary
+        )
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CompactActionButton(
+                text = "−",
+                accentColor = accentColor,
+                lightColor = lightColor,
+                onClick = onDecrease
+            )
+
+            CompactActionButton(
+                text = "+",
+                accentColor = accentColor,
+                lightColor = lightColor,
+                onClick = onIncrease
+            )
+        }
+    }
+}
+
+@Composable
+private fun CompactActionButton(
+    text: String,
+    accentColor: Color,
+    lightColor: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(30.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(lightColor)
+            .border(1.dp, accentColor.copy(alpha = 0.30f), RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = accentColor,
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp
+        )
     }
 }
 
@@ -1008,10 +1493,7 @@ private fun FavorContraRow(
     onContraDecrease: () -> Unit
 ) {
     BaseStatCard(title = title) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             CounterCard(
                 modifier = Modifier.weight(1f),
                 label = "Favor",
@@ -1048,13 +1530,10 @@ private fun PositiveNegativeRow(
     onNegativeDecrease: () -> Unit
 ) {
     BaseStatCard(title = title) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             CounterCard(
                 modifier = Modifier.weight(1f),
-                label = "+",
+                label = "Positivo",
                 value = positiveValue,
                 accentColor = positiveAccent,
                 lightColor = positiveLight,
@@ -1064,7 +1543,7 @@ private fun PositiveNegativeRow(
 
             CounterCard(
                 modifier = Modifier.weight(1f),
-                label = "-",
+                label = "Negativo",
                 value = negativeValue,
                 accentColor = ErrorRed,
                 lightColor = ErrorRedLight,
@@ -1090,10 +1569,7 @@ private fun GoodBadRow(
     onNegativeDecrease: () -> Unit
 ) {
     BaseStatCard(title = title) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             CounterCard(
                 modifier = Modifier.weight(1f),
                 label = positiveText,
