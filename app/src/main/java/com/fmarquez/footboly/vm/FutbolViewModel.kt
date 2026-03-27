@@ -926,10 +926,15 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
         val finishedMatch = match.copy(
             playerTimes = finalizedPlayerTimes,
+            isStarted = false,
             isFinished = true,
             remainingSeconds = 0,
             finishedAtMillis = System.currentTimeMillis(),
-            finishedAtLabel = getElapsedMatchTimeLabel(match)
+            finishedAtLabel = getElapsedMatchTimeLabel(match),
+            opponentGoals = calculateOpponentGoalsFromEvents(match.events),
+            opponentGoalChances = match.events.sumOf { event ->
+                if (event.type == "Oportunidad de Gol Rival") parseEventCount(event) else 0
+            }
         )
 
         currentMatch = finishedMatch
@@ -937,8 +942,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         shouldShowFinishedDialog = true
 
         viewModelScope.launch {
-            repository.updateMatch(finishedMatch)
-            repository.savePlayerTimes(finishedMatch)
+            repository.saveMatchAndLineup(finishedMatch)
+            repository.replaceAllMatchEvents(finishedMatch.id, finishedMatch.events)
         }
     }
 
@@ -1079,17 +1084,22 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
                     val finishedMatch = zeroMatch.copy(
                         playerTimes = finalizedPlayerTimes,
+                        isStarted = false,
                         isFinished = true,
                         finishedAtMillis = System.currentTimeMillis(),
-                        finishedAtLabel = getElapsedMatchTimeLabel(zeroMatch)
+                        finishedAtLabel = getElapsedMatchTimeLabel(zeroMatch),
+                        opponentGoals = calculateOpponentGoalsFromEvents(zeroMatch.events),
+                        opponentGoalChances = zeroMatch.events.sumOf { event ->
+                            if (event.type == "Oportunidad de Gol Rival") parseEventCount(event) else 0
+                        }
                     )
 
                     currentMatch = finishedMatch
                     putFinishedMatchLocally(finishedMatch)
                     shouldShowFinishedDialog = true
 
-                    repository.updateMatch(finishedMatch)
-                    repository.savePlayerTimes(finishedMatch)
+                    repository.saveMatchAndLineup(finishedMatch)
+                    repository.replaceAllMatchEvents(finishedMatch.id, finishedMatch.events)
                     break
                 } else {
                     val tickingMatch = updated.copy(remainingSeconds = newRemaining)
@@ -1110,6 +1120,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
     fun registerSwap(starter: Player, sub: Player) {
         val match = currentMatch ?: return
+        if (!match.isStarted || match.isFinished) return
+
         val elapsed = elapsedSeconds(match)
         val minute = elapsed / 60
         val timestamp = getElapsedMatchTimeLabel()
@@ -1127,9 +1139,20 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         )
 
         currentTimes[sub.id] = subTime.copy(
+            accumulatedSeconds = subTime.accumulatedSeconds,
             isCurrentlyPlaying = true,
             lastEntrySecond = elapsed
         )
+
+        val updatedStarters = match.starters.toMutableList().apply {
+            val index = indexOfFirst { it.id == starter.id }
+            if (index >= 0) this[index] = sub
+        }
+
+        val updatedSubstitutes = match.substitutes.toMutableList().apply {
+            val index = indexOfFirst { it.id == sub.id }
+            if (index >= 0) this[index] = starter
+        }
 
         val swapEvent = MatchEvent(
             minute = minute,
@@ -1141,6 +1164,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         )
 
         val updatedMatch = match.copy(
+            starters = updatedStarters.sortedBy { it.number }.toMutableList(),
+            substitutes = updatedSubstitutes.sortedBy { it.number }.toMutableList(),
             playerTimes = currentTimes,
             events = match.events.toMutableList().apply { add(swapEvent) }
         )
@@ -1148,8 +1173,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         currentMatch = updatedMatch
 
         viewModelScope.launch {
-            repository.addEvent(updatedMatch.id, swapEvent)
-            repository.savePlayerTimes(updatedMatch)
+            repository.saveMatchAndLineup(updatedMatch)
+            repository.replaceAllMatchEvents(updatedMatch.id, updatedMatch.events)
         }
     }
 

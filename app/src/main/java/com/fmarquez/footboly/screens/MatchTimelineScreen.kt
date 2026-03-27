@@ -649,30 +649,129 @@ fun MatchDetailContent(
 
     LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
+            val teamGoalsValue = teamGoals(match)
+            val rivalNameLabel = match.rivalName.ifBlank { "Equipo Rival" }
+            val dateTimeLabel = match.matchDateLabel.ifBlank {
+                match.finishedAtLabel.ifBlank { "Sin fecha" }
+            }
+
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = teamColorLight),
+                    .border(1.dp, teamColor.copy(alpha = 0.12f), RoundedCornerShape(22.dp)),
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceColor),
                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
             ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text("Partido terminado", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 15.sp, color = teamColor)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SummaryRow("Equipo", match.teamName, teamColor)
-                    if (match.rivalName.isNotBlank()) {
-                        SummaryRow("Rival", match.rivalName, teamColor)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(teamColorLight.copy(alpha = 0.55f))
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Partido terminado",
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = teamColor
+                        )
+                        Text(
+                            text = "Resumen general",
+                            fontSize = 12.sp,
+                            color = TextSecondary
+                        )
                     }
-                    if (match.matchDateLabel.isNotBlank()) {
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 18.dp, vertical = 18.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                Text(
+                                    text = match.teamName,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Local",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
+                            }
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(
+                                    text = teamGoalsValue.toString(),
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    fontSize = 28.sp,
+                                    color = teamColor
+                                )
+
+                                Text(
+                                    text = "-",
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                    fontSize = 20.sp,
+                                    color = TextSecondary
+                                )
+
+                                Text(
+                                    text = match.opponentGoals.toString(),
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    fontSize = 28.sp,
+                                    color = TextPrimary
+                                )
+                            }
+
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.End
+                            ) {
+                                Text(
+                                    text = rivalNameLabel,
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Rival",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    }
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        SummaryRow("Cantidad Eventos", "${match.events.size}", teamColor)
                         SummaryRowWithIcon(
-                            label = "Fecha",
-                            value = match.matchDateLabel,
+                            label = "Fecha y Hora",
+                            value = dateTimeLabel,
                             teamColor = teamColor
                         )
                     }
-                    SummaryRow("Duración", "${match.totalSeconds / 60} min", teamColor)
-                    SummaryRow("Eventos", "${match.events.size}", teamColor)
                 }
             }
         }
