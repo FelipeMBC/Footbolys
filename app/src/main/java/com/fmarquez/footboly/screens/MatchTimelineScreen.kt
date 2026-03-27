@@ -1096,6 +1096,7 @@ fun eventIcon(type: String, detail: String = ""): ImageVector {
         type.startsWith("Penal a Favor") -> Icons.Default.SportsSoccer
         type.startsWith("Penal en Contra") -> Icons.Default.HighlightOff
 
+        type.startsWith("Doble Amarilla") -> Icons.Default.Warning
         type.startsWith("Amarilla") -> Icons.Default.Warning
         type.startsWith("Roja") -> Icons.Default.HighlightOff
 

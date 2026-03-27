@@ -195,12 +195,28 @@ fun PlayersMasterScreen(
                 Button(
                     onClick = {
                         when {
-                            matchInCourse -> Toast.makeText(context, "Hay un partido en curso", Toast.LENGTH_SHORT).show()
+                            matchInCourse -> {
+                                Toast.makeText(
+                                    context,
+                                    "Partido en curso. Opción: Ver",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+
+                                navHostController.navigate(Screen.MATCH_LIVE.route) {
+                                    launchSingleTop = true
+                                }
+                            }
+
                             team.players.size < 5 -> showMinPlayersWarning = true
-                            else -> vm.createNewMatch { navHostController.navigate(Screen.MATCH_CONFIG.route) }
+
+                            else -> vm.createNewMatch {
+                                navHostController.navigate(Screen.MATCH_CONFIG.route)
+                            }
                         }
                     },
-                    modifier = Modifier.weight(1f).height(48.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = TextPrimary,
@@ -231,15 +247,24 @@ fun PlayersMasterScreen(
                     Text("Ver partidos", fontSize = 13.sp)
                 }
                 OutlinedButton(
-                    onClick = { navHostController.navigate(Screen.REPORT_SCREEN.route) },
-                    enabled = currentMatch?.isStarted == true || currentMatch?.isFinished == true,
-                    modifier = Modifier.weight(1f).height(44.dp),
+                    onClick = {
+                        Toast.makeText(
+                            context,
+                            "Opción no disponible",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    enabled = false,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
                     shape = RoundedCornerShape(12.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = SurfaceColor,
                         contentColor = TextPrimary,
-                        disabledContentColor = TextSecondary
+                        disabledContainerColor = Color(0xFFF3F3F3),
+                        disabledContentColor = Color(0xFF9A9A9A)
                     )
                 ) {
                     Text("Reporte", fontSize = 13.sp)

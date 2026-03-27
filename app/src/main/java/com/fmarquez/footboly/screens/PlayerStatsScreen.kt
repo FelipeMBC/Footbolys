@@ -22,26 +22,32 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,6 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.modelos.PlayerStatsDraft
 import com.fmarquez.footboly.util.hexToColor
 import com.fmarquez.footboly.util.teamColorLight
@@ -66,6 +73,8 @@ private val TextSecondary = Color(0xFF888888)
 private val BorderColor = Color(0xFFE0E0DC)
 private val ErrorRed = Color(0xFFD32F2F)
 private val ErrorRedLight = Color(0xFFFFF1F1)
+private val YellowCardColor = Color(0xFFF2B705)
+private val YellowCardLight = Color(0xFFFFF8DD)
 
 private object StatKey {
     const val GOL_FAVOR = "GOL_FAVOR"
@@ -123,9 +132,19 @@ fun PlayerStatsScreen(
     var expandGol by rememberSaveable { mutableStateOf(true) }
     var expandJuego by rememberSaveable { mutableStateOf(false) }
     var expandDetenido by rememberSaveable { mutableStateOf(false) }
-    var expandTarjetas by rememberSaveable { mutableStateOf(false) }
 
     val currentDraft = vm.getOrCreatePlayerStatsDraft(player.id)
+
+    val isMatchExpelled = activeMatch.expelledPlayers.any { it.id == player.id }
+    val isDraftExpelled = currentDraft.amarilla >= 2 || currentDraft.roja > 0
+    val isPlayerExpelled = isMatchExpelled || isDraftExpelled
+
+    val expulsionReason = when {
+        currentDraft.roja > 0 -> "Tarjeta Roja"
+        currentDraft.amarilla >= 2 -> "Doble Amarilla"
+        isMatchExpelled -> "Expulsado"
+        else -> ""
+    }
 
     Scaffold(
         containerColor = BgColor,
@@ -258,6 +277,43 @@ fun PlayerStatsScreen(
             }
 
             Spacer(modifier = Modifier.height(18.dp))
+
+            if (isPlayerExpelled) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(ErrorRedLight)
+                        .border(1.dp, ErrorRed.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = ErrorRed,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Jugador expulsado",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = ErrorRed
+                        )
+                        if (expulsionReason.isNotEmpty()) {
+                            Text(
+                                text = "Motivo: $expulsionReason",
+                                fontSize = 12.sp,
+                                color = ErrorRed.copy(alpha = 0.75f)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
             ExpandableStatsSection(
                 title = "Gol",
@@ -444,38 +500,434 @@ fun PlayerStatsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            ExpandableStatsSection(
-                title = "Tarjetas",
-                icon = Icons.Default.Star,
-                expanded = expandTarjetas,
-                accentColor = teamColor,
-                accentLight = teamColorLight,
-                onToggle = { expandTarjetas = !expandTarjetas }
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SingleCounterRow(
-                        title = "Amarilla",
-                        value = draftValue(currentDraft, StatKey.AMARILLA),
-                        accentColor = Color(0xFFF2B705),
-                        lightColor = Color(0xFFFFF8DD),
-                        onIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.AMARILLA)) },
-                        onDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.AMARILLA)) }
-                    )
-
-                    SingleCounterRow(
-                        title = "Roja",
-                        value = draftValue(currentDraft, StatKey.ROJA),
-                        accentColor = ErrorRed,
-                        lightColor = ErrorRedLight,
-                        onIncrease = { vm.updatePlayerStatsDraft(increaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.ROJA)) },
-                        onDecrease = { vm.updatePlayerStatsDraft(decreaseStat(vm.getOrCreatePlayerStatsDraft(player.id), StatKey.ROJA)) }
-                    )
+            CardStatsSection(
+                player = player,
+                vm = vm,
+                currentDraft = currentDraft,
+                canAddCard = !isPlayerExpelled,
+                isEditingFinishedMatch = isEditingFinishedMatch,
+                teamColor = teamColor,
+                teamColorLight = teamColorLight,
+                expulsionReason = expulsionReason,
+                onConfirmedBlockingCard = {
+                    navHostController.popBackStack()
                 }
-            }
+            )
 
             Spacer(modifier = Modifier.height(20.dp))
         }
     }
+}
+
+@Composable
+private fun CardStatsSection(
+    player: Player,
+    vm: FutbolViewModel,
+    currentDraft: PlayerStatsDraft,
+    canAddCard: Boolean,
+    isEditingFinishedMatch: Boolean,
+    teamColor: Color,
+    teamColorLight: Color,
+    expulsionReason: String,
+    onConfirmedBlockingCard: () -> Unit
+) {
+    var showDialog by remember { mutableStateOf(false) }
+    var showConfirmDialog by remember { mutableStateOf(false) }
+    var pendingSelection by remember { mutableStateOf<String?>(null) }
+
+    val yellowCount = currentDraft.amarilla.coerceIn(0, 2)
+    val redCount = currentDraft.roja.coerceIn(0, 1)
+    val isPlayerExpelled = yellowCount >= 2 || redCount > 0
+
+    fun applyCardSelection(selection: String) {
+        val latestDraft = vm.getOrCreatePlayerStatsDraft(player.id)
+
+        when (selection) {
+            "AMARILLA" -> {
+                val updated = latestDraft.copy(
+                    amarilla = (latestDraft.amarilla + 1).coerceAtMost(2)
+                )
+                vm.updatePlayerStatsDraft(updated)
+
+                if (updated.amarilla >= 2 && !isEditingFinishedMatch) {
+                    vm.savePlayerStatsDraftAsEvents(player.id)
+                    vm.expelPlayerByCard(player, "Doble Amarilla")
+                    onConfirmedBlockingCard()
+                }
+            }
+
+            "DOBLE_AMARILLA" -> {
+                val updated = latestDraft.copy(
+                    amarilla = 2,
+                    roja = 0
+                )
+                vm.updatePlayerStatsDraft(updated)
+
+                if (!isEditingFinishedMatch) {
+                    vm.savePlayerStatsDraftAsEvents(player.id)
+                    vm.expelPlayerByCard(player, "Doble Amarilla")
+                    onConfirmedBlockingCard()
+                }
+            }
+
+            "ROJA" -> {
+                val updated = latestDraft.copy(
+                    roja = 1
+                )
+                vm.updatePlayerStatsDraft(updated)
+
+                if (!isEditingFinishedMatch) {
+                    vm.savePlayerStatsDraftAsEvents(player.id)
+                    vm.expelPlayerByCard(player, "Tarjeta Roja")
+                    onConfirmedBlockingCard()
+                }
+            }
+        }
+    }
+
+    fun needsConfirmation(selection: String): Boolean {
+        val latestDraft = vm.getOrCreatePlayerStatsDraft(player.id)
+        return when (selection) {
+            "ROJA" -> true
+            "DOBLE_AMARILLA" -> true
+            "AMARILLA" -> latestDraft.amarilla + 1 >= 2
+            else -> false
+        }
+    }
+
+    fun confirmationText(selection: String): String {
+        return when (selection) {
+            "ROJA" -> "¿Estás seguro de asignarle Tarjeta Roja? Al hacer esto el jugador quedará bloqueado."
+            "DOBLE_AMARILLA" -> "¿Estás seguro de asignarle Doble Amarilla? Al hacer esto el jugador quedará bloqueado."
+            "AMARILLA" -> "¿Estás seguro de asignarle esta Amarilla? Con esta cantidad el jugador quedará bloqueado."
+            else -> ""
+        }
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, BorderColor, RoundedCornerShape(18.dp)),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(if (isPlayerExpelled) ErrorRedLight else teamColorLight),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = if (isPlayerExpelled) ErrorRed else teamColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Text(
+                    text = "Tarjetas",
+                    modifier = Modifier.weight(1f),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = if (isPlayerExpelled) ErrorRed else TextPrimary
+                )
+
+                if (canAddCard && !isPlayerExpelled) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(teamColor)
+                            .clickable { showDialog = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Agregar tarjeta",
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    repeat(yellowCount) {
+                        FootballCardVisual(YellowCardColor)
+                    }
+
+                    repeat(redCount) {
+                        FootballCardVisual(ErrorRed)
+                    }
+
+                    if (yellowCount == 0 && redCount == 0) {
+                        repeat(3) {
+                            FootballCardVisual(BorderColor.copy(alpha = 0.35f))
+                        }
+                    }
+                }
+
+                when {
+                    isPlayerExpelled && expulsionReason.isNotEmpty() -> {
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = "Expulsado",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = ErrorRed
+                            )
+                            Text(
+                                text = expulsionReason,
+                                fontSize = 11.sp,
+                                color = ErrorRed.copy(alpha = 0.75f)
+                            )
+                        }
+                    }
+
+                    yellowCount == 1 -> {
+                        Text(
+                            text = "1 Amarilla",
+                            fontSize = 12.sp,
+                            color = YellowCardColor,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    yellowCount == 2 -> {
+                        Text(
+                            text = "2 Amarillas",
+                            fontSize = 12.sp,
+                            color = ErrorRed,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    redCount == 1 -> {
+                        Text(
+                            text = "1 Roja",
+                            fontSize = 12.sp,
+                            color = ErrorRed,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showDialog) {
+        CardSelectionDialog(
+            currentYellowCards = yellowCount,
+            onDismiss = { showDialog = false },
+            onSelectYellow = {
+                showDialog = false
+                if (needsConfirmation("AMARILLA")) {
+                    pendingSelection = "AMARILLA"
+                    showConfirmDialog = true
+                } else {
+                    applyCardSelection("AMARILLA")
+                }
+            },
+            onSelectDoubleYellow = {
+                showDialog = false
+                pendingSelection = "DOBLE_AMARILLA"
+                showConfirmDialog = true
+            },
+            onSelectRed = {
+                showDialog = false
+                pendingSelection = "ROJA"
+                showConfirmDialog = true
+            }
+        )
+    }
+
+    if (showConfirmDialog && pendingSelection != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showConfirmDialog = false
+                pendingSelection = null
+            },
+            title = {
+                Text("Confirmar tarjeta", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(confirmationText(pendingSelection!!))
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val selection = pendingSelection
+                        showConfirmDialog = false
+                        pendingSelection = null
+                        if (selection != null) {
+                            applyCardSelection(selection)
+                        }
+                    }
+                ) {
+                    Text("Confirmar", color = ErrorRed, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showConfirmDialog = false
+                        pendingSelection = null
+                    }
+                ) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            }
+        )
+    }
+}
+@Composable
+private fun FootballCardVisual(
+    color: Color,
+    width: Int = 20,
+    height: Int = 28
+) {
+    Box(
+        modifier = Modifier
+            .size(width = width.dp, height = height.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(color)
+            .border(1.dp, color.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+    )
+}
+
+@Composable
+private fun CardOptionItem(
+    icon: @Composable () -> Unit,
+    title: String,
+    subtitle: String,
+    backgroundColor: Color,
+    borderColor: Color,
+    textColor: Color,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(backgroundColor)
+            .border(1.dp, borderColor, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        icon()
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = textColor)
+            Text(subtitle, fontSize = 12.sp, color = textColor.copy(alpha = 0.65f))
+        }
+    }
+}
+
+@Composable
+private fun CardSelectionDialog(
+    currentYellowCards: Int,
+    onDismiss: () -> Unit,
+    onSelectYellow: () -> Unit,
+    onSelectDoubleYellow: () -> Unit,
+    onSelectRed: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceColor,
+        shape = RoundedCornerShape(20.dp),
+        title = {
+            Text(
+                text = "Registrar tarjeta",
+                fontWeight = FontWeight.Bold,
+                fontSize = 17.sp,
+                color = TextPrimary
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "Selecciona el tipo de tarjeta",
+                    fontSize = 13.sp,
+                    color = TextSecondary
+                )
+
+                if (currentYellowCards == 0) {
+                    CardOptionItem(
+                        icon = { FootballCardVisual(YellowCardColor) },
+                        title = "Amarilla",
+                        subtitle = "Primera advertencia",
+                        backgroundColor = YellowCardLight,
+                        borderColor = YellowCardColor.copy(alpha = 0.4f),
+                        textColor = Color(0xFF8A6800),
+                        onClick = onSelectYellow
+                    )
+                }
+
+                if (currentYellowCards <= 1) {
+                    CardOptionItem(
+                        icon = {
+                            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                FootballCardVisual(YellowCardColor)
+                                FootballCardVisual(YellowCardColor)
+                            }
+                        },
+                        title = if (currentYellowCards == 1) "Segunda Amarilla" else "Doble Amarilla",
+                        subtitle = "Expulsión del jugador",
+                        backgroundColor = ErrorRedLight,
+                        borderColor = ErrorRed.copy(alpha = 0.35f),
+                        textColor = ErrorRed,
+                        onClick = onSelectDoubleYellow
+                    )
+                }
+
+                HorizontalDivider(color = BorderColor)
+
+                CardOptionItem(
+                    icon = { FootballCardVisual(ErrorRed) },
+                    title = "Tarjeta Roja",
+                    subtitle = "Expulsión directa",
+                    backgroundColor = ErrorRedLight,
+                    borderColor = ErrorRed.copy(alpha = 0.35f),
+                    textColor = ErrorRed,
+                    onClick = onSelectRed
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary)
+            ) {
+                Text("Cancelar")
+            }
+        }
+    )
 }
 
 @Composable
@@ -666,28 +1118,6 @@ private fun GoodBadRow(
 }
 
 @Composable
-private fun SingleCounterRow(
-    title: String,
-    value: Int,
-    accentColor: Color,
-    lightColor: Color,
-    onIncrease: () -> Unit,
-    onDecrease: () -> Unit
-) {
-    BaseStatCard(title = title) {
-        CounterCard(
-            modifier = Modifier.fillMaxWidth(),
-            label = title,
-            value = value,
-            accentColor = accentColor,
-            lightColor = lightColor,
-            onIncrease = onIncrease,
-            onDecrease = onDecrease
-        )
-    }
-}
-
-@Composable
 private fun BaseStatCard(
     title: String,
     content: @Composable () -> Unit
@@ -845,8 +1275,8 @@ private fun increaseStat(draft: PlayerStatsDraft, key: String): PlayerStatsDraft
     StatKey.PENAL_FAVOR -> draft.copy(penalFavor = draft.penalFavor + 1)
     StatKey.PENAL_CONTRA -> draft.copy(penalContra = draft.penalContra + 1)
 
-    StatKey.AMARILLA -> draft.copy(amarilla = draft.amarilla + 1)
-    StatKey.ROJA -> draft.copy(roja = draft.roja + 1)
+    StatKey.AMARILLA -> draft.copy(amarilla = (draft.amarilla + 1).coerceAtMost(2))
+    StatKey.ROJA -> draft.copy(roja = (draft.roja + 1).coerceAtMost(1))
     else -> draft
 }
 

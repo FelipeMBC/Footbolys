@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Healing
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.StackedLineChart
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -80,6 +81,7 @@ private val InjuryAmber = Color(0xFFE65100)
 private val InjuryLight = Color(0xFFFFF3E0)
 private val BlockedGray = Color(0xFFEAEAEA)
 private val BlockedText = Color(0xFF8C8C8C)
+private val YellowCardColor = Color(0xFFF2B705)
 
 private fun parseEventCount(detail: String): Int {
     return detail.substringAfter(": ", "").toIntOrNull() ?: 1
@@ -89,6 +91,23 @@ private fun ownGoals(events: List<MatchEvent>): Int {
     return events
         .filter { it.type == "Gol a Favor" }
         .sumOf { parseEventCount(it.detail) }
+}
+
+private fun playerCardCounts(
+    playerId: Int,
+    events: List<MatchEvent>
+): Pair<Int, Int> {
+    val yellow = events
+        .filter { it.playerId == playerId && it.type == "Amarilla" }
+        .sumOf { parseEventCount(it.detail) }
+        .coerceAtMost(2)
+
+    val red = events
+        .filter { it.playerId == playerId && it.type == "Roja" }
+        .sumOf { parseEventCount(it.detail) }
+        .coerceAtMost(1)
+
+    return yellow to red
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -115,11 +134,10 @@ fun MatchLiveScreen(
     var showStopMatchDialog by remember { mutableStateOf(false) }
     var showOpponentEventDialog by remember { mutableStateOf(false) }
 
-    // Por ahora quedan locales a la nueva pantalla.
     val opponentGoals = match.opponentGoals
     val opponentGoalChances = match.opponentGoalChances
 
-    val liveTick by produceState(initialValue = 0, key1 = match.isStarted, key2 = match.isFinished) {
+    produceState(initialValue = 0, key1 = match.isStarted, key2 = match.isFinished) {
         while (match.isStarted && !match.isFinished) {
             delay(1000)
             value++
@@ -203,11 +221,18 @@ fun MatchLiveScreen(
                 ownGoals = currentOwnGoals,
                 opponentGoals = opponentGoals,
                 onOpponentPlus = { showOpponentEventDialog = true },
-                onOpponentMinus = {
-                    vm.updateOpponentGoals(-1)
-                },
+                onOpponentMinus = { vm.updateOpponentGoals(-1) },
                 teamColor = teamColor,
                 teamColorLight = teamColorLight
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Oportunidades rival: $opponentGoalChances",
+                fontSize = 12.sp,
+                color = TextSecondary,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -233,10 +258,7 @@ fun MatchLiveScreen(
                     )
                 }
             ) {
-                listOf(
-                    "Titulares",
-                    "Reservas"
-                ).forEachIndexed { index, title ->
+                listOf("Titulares", "Reservas").forEachIndexed { index, title ->
                     Tab(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
@@ -270,12 +292,16 @@ fun MatchLiveScreen(
                     ) {
                         items(items = displayedStarters, key = { player -> player.id }) { player ->
                             val playerTime = vm.getFormattedPlayerTime(player.id, vm.currentMatch)
+                            val (yellowCards, redCards) = playerCardCounts(player.id, match.events)
+
                             LivePlayerRowItem(
                                 player = player,
                                 role = "Titular",
                                 teamColor = teamColor,
                                 teamColorLight = teamColorLight,
                                 playedTime = playerTime,
+                                yellowCards = yellowCards,
+                                redCards = redCards,
                                 showStats = true,
                                 showSwap = displayedSubstitutes.isNotEmpty(),
                                 onStats = {
@@ -302,10 +328,14 @@ fun MatchLiveScreen(
                             }
 
                             items(items = expelledPlayers, key = { player -> player.id }) { player ->
+                                val (yellowCards, redCards) = playerCardCounts(player.id, match.events)
+
                                 LiveBlockedPlayerRowItem(
                                     player = player,
                                     reason = "Expulsado",
-                                    accentColor = ErrorRed
+                                    accentColor = ErrorRed,
+                                    yellowCards = yellowCards,
+                                    redCards = redCards
                                 )
                                 HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
                             }
@@ -322,10 +352,14 @@ fun MatchLiveScreen(
                             }
 
                             items(items = injuredPlayers, key = { player -> player.id }) { player ->
+                                val (yellowCards, redCards) = playerCardCounts(player.id, match.events)
+
                                 LiveBlockedPlayerRowItem(
                                     player = player,
                                     reason = "Lesionado",
-                                    accentColor = InjuryAmber
+                                    accentColor = InjuryAmber,
+                                    yellowCards = yellowCards,
+                                    redCards = redCards
                                 )
                                 HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
                             }
@@ -355,12 +389,16 @@ fun MatchLiveScreen(
                         LazyColumn(modifier = Modifier.padding(horizontal = 4.dp)) {
                             items(items = displayedSubstitutes, key = { player -> player.id }) { player ->
                                 val playerTime = vm.getFormattedPlayerTime(player.id, vm.currentMatch)
+                                val (yellowCards, redCards) = playerCardCounts(player.id, match.events)
+
                                 LivePlayerRowItem(
                                     player = player,
                                     role = "Reserva",
                                     teamColor = teamColor,
                                     teamColorLight = teamColorLight,
-                                    playedTime = playerTime
+                                    playedTime = playerTime,
+                                    yellowCards = yellowCards,
+                                    redCards = redCards
                                 )
                                 HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
                             }
@@ -405,7 +443,7 @@ fun MatchLiveScreen(
 
                     TextButton(
                         onClick = {
-                            vm.updateOpponentGoals(1)
+                            vm.updateOpponentGoalChances(1)
                             showOpponentEventDialog = false
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -722,7 +760,9 @@ private fun LiveBlockedSectionHeader(
 private fun LiveBlockedPlayerRowItem(
     player: Player,
     reason: String,
-    accentColor: Color
+    accentColor: Color,
+    yellowCards: Int = 0,
+    redCards: Int = 0
 ) {
     Row(
         modifier = Modifier
@@ -760,6 +800,14 @@ private fun LiveBlockedPlayerRowItem(
                 fontSize = 12.sp,
                 color = accentColor
             )
+
+            if (yellowCards > 0 || redCards > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                MiniCardIndicatorRow(
+                    yellowCount = yellowCards,
+                    redCount = redCards
+                )
+            }
         }
 
         Icon(
@@ -778,6 +826,8 @@ private fun LivePlayerRowItem(
     teamColor: Color,
     teamColorLight: Color,
     playedTime: String = "00:00",
+    yellowCards: Int = 0,
+    redCards: Int = 0,
     showStats: Boolean = false,
     showSwap: Boolean = false,
     onStats: () -> Unit = {},
@@ -820,26 +870,75 @@ private fun LivePlayerRowItem(
             )
         }
 
-        if (showStats) {
-            IconButton(onClick = onStats, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    Icons.Default.StackedLineChart,
-                    contentDescription = "Estadísticas",
-                    tint = teamColor,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
+        Column(
+            horizontalAlignment = Alignment.End
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (showStats) {
+                    IconButton(onClick = onStats, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Default.StackedLineChart,
+                            contentDescription = "Estadísticas",
+                            tint = teamColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
 
-        if (showSwap) {
-            IconButton(onClick = onSwap, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    Icons.Default.StackedLineChart,
-                    contentDescription = "Cambio",
-                    tint = TextSecondary,
-                    modifier = Modifier.size(18.dp)
+                if (showSwap) {
+                    IconButton(onClick = onSwap, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Default.SwapHoriz,
+                            contentDescription = "Cambio",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            }
+
+            if (yellowCards > 0 || redCards > 0) {
+                Spacer(modifier = Modifier.height(4.dp))
+                MiniCardIndicatorRow(
+                    yellowCount = yellowCards,
+                    redCount = redCards
                 )
             }
         }
     }
+}
+
+@Composable
+private fun MiniCardIndicatorRow(
+    yellowCount: Int,
+    redCount: Int,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(yellowCount.coerceAtMost(2)) {
+            MiniFootballCard(color = YellowCardColor)
+        }
+
+        repeat(redCount.coerceAtMost(1)) {
+            MiniFootballCard(color = ErrorRed)
+        }
+    }
+}
+
+@Composable
+private fun MiniFootballCard(color: Color) {
+    Box(
+        modifier = Modifier
+            .size(width = 10.dp, height = 14.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(color)
+            .border(1.dp, color.copy(alpha = 0.7f), RoundedCornerShape(2.dp))
+    )
 }

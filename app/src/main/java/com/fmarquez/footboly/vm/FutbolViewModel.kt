@@ -298,12 +298,18 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
                 "Amarilla" -> draft.copy(amarilla = draft.amarilla + count)
                 "Roja" -> draft.copy(roja = draft.roja + count)
+
+                // Evento informativo extra, no suma más amarillas,
+                // solo asegura reconstrucción correcta si existe sin el conteo previo.
+                "Doble Amarilla" -> draft.copy(amarilla = maxOf(draft.amarilla, 2))
+
                 else -> draft
             }
         }
 
         return draft
     }
+
 
     fun getOrCreatePlayerStatsDraft(playerId: Int): PlayerStatsDraft {
         val match = getActiveMatchForStatsInternal()
@@ -362,7 +368,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
                     type = type,
                     count = count,
                     timestampLabel = previous?.timestampLabel ?: defaultTimestamp,
-                    minute = previous?.minute ?: 0
+                    minute = previous?.minute ?: getCurrentMatchMinute(currentMatch ?: return)
                 )
             )
         }
@@ -395,11 +401,17 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         addIfNeeded("Penal en Contra", draft.penalContra)
 
         addIfNeeded("Amarilla", draft.amarilla)
-        addIfNeeded("Roja", draft.roja)
+
+        if (draft.amarilla >= 2) {
+            addIfNeeded("Doble Amarilla", 1)
+        }
+
+        if (draft.roja > 0) {
+            addIfNeeded("Roja", 1)
+        }
 
         return result
     }
-
     private fun buildEditChanges(
         playerName: String,
         original: PlayerStatsDraft,
@@ -408,7 +420,9 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         val changes = mutableListOf<String>()
 
         fun compare(label: String, oldValue: Int, newValue: Int) {
-            if (oldValue != newValue) changes.add("$playerName · $label: $oldValue → $newValue")
+            if (oldValue != newValue) {
+                changes.add("$playerName · $label: $oldValue → $newValue")
+            }
         }
 
         compare("Gol a Favor", original.golFavor, updated.golFavor)
@@ -496,14 +510,15 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
     fun clearPlayerStatsDraft(playerId: Int) {
         val match = getActiveMatchForStats() ?: return
-        val emptyDraft = PlayerStatsDraft(
-            playerId = playerId,
-            matchId = match.id
-        )
-        updatePlayerStatsDraft(emptyDraft)
+        val key = statsDraftKey(match.id, playerId)
+        playerStatsDrafts.remove(key)
     }
 
     fun savePlayerStatsDraftAsEvents(playerId: Int): List<String> {
+        if (isEditingFinishedMatchMode()) {
+            return saveEditedFinishedMatch(playerId)
+        }
+
         val match = getActiveMatchForStats() ?: return emptyList()
         val draft = getOrCreatePlayerStatsDraft(playerId)
         val player = (match.starters + match.substitutes + match.expelledPlayers + match.injuredPlayers)
@@ -511,80 +526,67 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
             .firstOrNull { it.id == playerId }
             ?: return emptyList()
 
-        val minute = getCurrentMatchMinute(match)
-        val timestamp = formatMatchClock(match)
+        val oldEventsOfPlayer = match.events.filter { it.playerId == playerId }
+        val eventsWithoutPlayer = match.events.filterNot { it.playerId == playerId }.toMutableList()
 
-        val newEvents = mutableListOf<MatchEvent>()
+        val rebuiltEventsForPlayer = buildEventsFromDraftForPlayer(
+            player = player,
+            draft = draft,
+            oldEventsOfPlayer = oldEventsOfPlayer,
+            defaultTimestamp = formatMatchClock(match)
+        )
+
+        val updatedMatch = match.copy(
+            events = (eventsWithoutPlayer + rebuiltEventsForPlayer)
+                .sortedBy { it.minute }
+                .toMutableList()
+        )
+        currentMatch = updatedMatch
+
         val changes = mutableListOf<String>()
 
-        fun addEvent(type: String, count: Int) {
-            if (count <= 0) return
-
-            newEvents.add(
-                MatchEvent(
-                    minute = minute,
-                    type = type,
-                    playerId = player.id,
-                    playerName = player.name,
-                    detail = "Cantidad: $count",
-                    timestampLabel = timestamp
-                )
-            )
-            changes.add("${player.name}: $type x$count")
+        fun addChange(label: String, value: Int) {
+            if (value > 0) changes.add("${player.name}: $label x$value")
         }
 
-        // Bloque 1
-        addEvent("Gol a Favor", draft.golFavor)
-        addEvent("Gol en Contra", draft.golContra)
-        addEvent("Tiro al Arco +", draft.tiroAlArcoPositivo)
-        addEvent("Tiro al Arco -", draft.tiroAlArcoNegativo)
-        addEvent("Participación de Gol a Favor", draft.participacionGolFavor)
-        addEvent("Participación de Gol en Contra", draft.participacionGolContra)
-        addEvent("Remate 1/2 +", draft.remate12Positivo)
-        addEvent("Remate 1/2 -", draft.remate12Negativo)
+        addChange("Gol a Favor", draft.golFavor)
+        addChange("Gol en Contra", draft.golContra)
+        addChange("Tiro al Arco +", draft.tiroAlArcoPositivo)
+        addChange("Tiro al Arco -", draft.tiroAlArcoNegativo)
+        addChange("Participación de Gol a Favor", draft.participacionGolFavor)
+        addChange("Participación de Gol en Contra", draft.participacionGolContra)
+        addChange("Remate 1/2 +", draft.remate12Positivo)
+        addChange("Remate 1/2 -", draft.remate12Negativo)
 
-        // Bloque 2
-        addEvent("Balón Recogido a Favor", draft.balonRecogidoFavor)
-        addEvent("Balón Recogido en Contra", draft.balonRecogidoContra)
-        addEvent("Pases Buenos", draft.pasesBuenos)
-        addEvent("Pases Malos", draft.pasesMalos)
-        addEvent("Centros +", draft.centrosPositivos)
-        addEvent("Centros -", draft.centrosNegativos)
-        addEvent("Rechazos +", draft.rechazosPositivos)
-        addEvent("Rechazos -", draft.rechazosNegativos)
+        addChange("Balón Recogido a Favor", draft.balonRecogidoFavor)
+        addChange("Balón Recogido en Contra", draft.balonRecogidoContra)
+        addChange("Pases Buenos", draft.pasesBuenos)
+        addChange("Pases Malos", draft.pasesMalos)
+        addChange("Centros +", draft.centrosPositivos)
+        addChange("Centros -", draft.centrosNegativos)
+        addChange("Rechazos +", draft.rechazosPositivos)
+        addChange("Rechazos -", draft.rechazosNegativos)
 
-        // Bloque 3
-        addEvent("Falta a Favor", draft.faltaFavor)
-        addEvent("Falta en Contra", draft.faltaContra)
-        addEvent("Corner +", draft.cornerPositivo)
-        addEvent("Corner -", draft.cornerNegativo)
-        addEvent("Tiro Libre a Favor", draft.tiroLibreFavor)
-        addEvent("Tiro Libre en Contra", draft.tiroLibreContra)
-        addEvent("Penal a Favor", draft.penalFavor)
-        addEvent("Penal en Contra", draft.penalContra)
+        addChange("Falta a Favor", draft.faltaFavor)
+        addChange("Falta en Contra", draft.faltaContra)
+        addChange("Corner +", draft.cornerPositivo)
+        addChange("Corner -", draft.cornerNegativo)
+        addChange("Tiro Libre a Favor", draft.tiroLibreFavor)
+        addChange("Tiro Libre en Contra", draft.tiroLibreContra)
+        addChange("Penal a Favor", draft.penalFavor)
+        addChange("Penal en Contra", draft.penalContra)
 
-        // Se mantienen
-        addEvent("Amarilla", draft.amarilla)
-        addEvent("Roja", draft.roja)
+        addChange("Amarilla", draft.amarilla)
+        addChange("Roja", draft.roja)
 
-        if (newEvents.isEmpty()) return emptyList()
-
-        if (isEditingFinishedMatchMode()) {
-            return saveEditedFinishedMatch(playerId)
-        } else {
-            val updatedMatch = match.copy(
-                events = (match.events + newEvents).sortedBy { it.minute }.toMutableList()
-            )
-            currentMatch = updatedMatch
-
-            viewModelScope.launch {
-                newEvents.forEach { event ->
-                    repository.addEvent(updatedMatch.id, event)
-                }
-            }
+        viewModelScope.launch {
+            repository.replacePlayerEvents(updatedMatch.id, playerId, rebuiltEventsForPlayer)
+            repository.updateMatch(updatedMatch)
         }
 
-        clearPlayerStatsDraft(playerId)
+        val rebuiltDraft = buildDraftFromMatch(updatedMatch, playerId)
+        updatePlayerStatsDraft(rebuiltDraft)
+
         return changes
     }
 
@@ -658,6 +660,27 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     fun removePlayer(player: Player) {
         val team = selectedTeam ?: return
         viewModelScope.launch { repository.removePlayer(team.id, player.id) }
+    }
+
+    fun expelPlayerByCard(player: Player, reason: String) {
+        val match = currentMatch ?: return
+        if (!match.isStarted || match.isFinished) return
+
+        val cleanedMatch = removePlayerFromAllLists(match, player.id)
+
+        val updatedMatch = cleanedMatch.copy(
+            expelledPlayers = cleanedMatch.expelledPlayers.toMutableList().apply {
+                if (none { it.id == player.id }) {
+                    add(player)
+                }
+            }
+        )
+
+        currentMatch = updatedMatch
+
+        viewModelScope.launch {
+            repository.saveMatchAndLineup(updatedMatch)
+        }
     }
 
     fun createNewMatch(onCreated: (() -> Unit)? = null) {
