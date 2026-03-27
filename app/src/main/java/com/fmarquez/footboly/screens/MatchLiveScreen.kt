@@ -221,7 +221,18 @@ fun MatchLiveScreen(
                 ownGoals = currentOwnGoals,
                 opponentGoals = opponentGoals,
                 onOpponentPlus = { showOpponentEventDialog = true },
-                onOpponentMinus = { vm.updateOpponentGoals(-1) },
+                onOpponentMinus = {
+                    val blockedMessage = vm.getBlockedOpponentGoalRemovalMessage()
+                    if (blockedMessage != null) {
+                        Toast.makeText(
+                            navHostController.context,
+                            blockedMessage,
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    } else {
+                        vm.updateOpponentGoals(-1)
+                    }
+                },
                 teamColor = teamColor,
                 teamColorLight = teamColorLight
             )

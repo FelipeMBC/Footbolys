@@ -11,17 +11,23 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
@@ -90,6 +96,8 @@ private val InjuryAmber = Color(0xFFE65100)
 private val InjuryLight = Color(0xFFFFF3E0)
 private val BlockedGray = Color(0xFFEAEAEA)
 private val BlockedText = Color(0xFF8C8C8C)
+private val YellowCardColor = Color(0xFFF2C94C)
+private val RedCardColor = Color(0xFFE53935)
 
 private data class EventSummaryItem(
     val type: String,
@@ -99,6 +107,23 @@ private data class EventSummaryItem(
 
 private fun parseEventCount(detail: String): Int {
     return detail.substringAfter(": ", "").toIntOrNull() ?: 1
+}
+
+private fun playerCardCounts(
+    playerId: Int,
+    events: List<MatchEvent>
+): Pair<Int, Int> {
+    val yellow = events
+        .filter { it.playerId == playerId && it.type == "Amarilla" }
+        .sumOf { parseEventCount(it.detail) }
+        .coerceAtMost(2)
+
+    val red = events
+        .filter { it.playerId == playerId && it.type == "Roja" }
+        .sumOf { parseEventCount(it.detail) }
+        .coerceAtMost(1)
+
+    return yellow to red
 }
 
 private fun buildEventSummary(events: List<MatchEvent>): List<EventSummaryItem> {
@@ -217,7 +242,15 @@ fun MatchTimelineScreen(
                 )
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                val scrollState = rememberScrollState()
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     if (summarizedEvents.isEmpty()) {
                         Text("No hay eventos registrados", color = TextSecondary)
                     } else {
@@ -311,7 +344,15 @@ fun MatchTimelineScreen(
                 )
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val scrollState = rememberScrollState()
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Text(
                         text = "Total: ${eventItem.total}",
                         fontSize = 13.sp,
@@ -339,40 +380,34 @@ fun MatchTimelineScreen(
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(30.dp)
-                                            .background(selectedMatchColorLight, CircleShape),
+                                            .size(34.dp)
+                                            .background(selectedMatchColorLight, RoundedCornerShape(8.dp)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            Icons.Default.Person,
-                                            contentDescription = null,
+                                            imageVector = eventIcon(eventItem.type),
+                                            contentDescription = eventItem.type,
                                             tint = selectedMatchColor,
-                                            modifier = Modifier.size(14.dp)
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
 
                                     Spacer(modifier = Modifier.width(10.dp))
 
-                                    Text(
-                                        text = playerName,
-                                        fontSize = 13.sp,
-                                        color = TextPrimary,
-                                        modifier = Modifier.weight(1f)
-                                    )
-
-                                    Box(
-                                        modifier = Modifier
-                                            .background(BgColor, RoundedCornerShape(8.dp))
-                                            .border(1.dp, BorderColor, RoundedCornerShape(8.dp))
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
+                                    Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = "×$count",
-                                            fontSize = 12.sp,
+                                            text = playerName,
                                             fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                                            color = selectedMatchColor
+                                            fontSize = 14.sp,
+                                            color = TextPrimary
                                         )
                                     }
+
+                                    Text(
+                                        text = count.toString(),
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                        color = selectedMatchColor
+                                    )
                                 }
                             }
                         }
@@ -707,10 +742,14 @@ fun MatchDetailContent(
             }
 
             items(expelledPlayers, key = { it.id }) { player ->
+                val (yellowCards, redCards) = playerCardCounts(player.id, match.events)
+
                 SavedBlockedMatchPlayerRow(
                     player = player,
                     reason = "Expulsado",
-                    accentColor = ErrorRed
+                    accentColor = ErrorRed,
+                    yellowCards = yellowCards,
+                    redCards = redCards
                 )
             }
         }
@@ -726,10 +765,14 @@ fun MatchDetailContent(
             }
 
             items(injuredPlayers, key = { it.id }) { player ->
+                val (yellowCards, redCards) = playerCardCounts(player.id, match.events)
+
                 SavedBlockedMatchPlayerRow(
                     player = player,
                     reason = "Lesionado",
-                    accentColor = InjuryAmber
+                    accentColor = InjuryAmber,
+                    yellowCards = yellowCards,
+                    redCards = redCards
                 )
             }
         }
@@ -889,10 +932,41 @@ private fun BlockedSectionHeader(
 }
 
 @Composable
+private fun PlayerCardBadges(
+    yellowCards: Int,
+    redCards: Int
+) {
+    if (yellowCards <= 0 && redCards <= 0) return
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        repeat(yellowCards) {
+            Box(
+                modifier = Modifier
+                    .size(width = 12.dp, height = 16.dp)
+                    .background(YellowCardColor, RoundedCornerShape(2.dp))
+            )
+        }
+
+        repeat(redCards) {
+            Box(
+                modifier = Modifier
+                    .size(width = 12.dp, height = 16.dp)
+                    .background(RedCardColor, RoundedCornerShape(2.dp))
+            )
+        }
+    }
+}
+
+@Composable
 private fun SavedBlockedMatchPlayerRow(
     player: Player,
     reason: String,
-    accentColor: Color
+    accentColor: Color,
+    yellowCards: Int = 0,
+    redCards: Int = 0
 ) {
     Card(
         modifier = Modifier
@@ -936,6 +1010,14 @@ private fun SavedBlockedMatchPlayerRow(
                     fontSize = 12.sp,
                     color = accentColor
                 )
+
+                if (yellowCards > 0 || redCards > 0) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    PlayerCardBadges(
+                        yellowCards = yellowCards,
+                        redCards = redCards
+                    )
+                }
             }
 
             Icon(

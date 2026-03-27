@@ -24,6 +24,9 @@ interface MatchDao {
     @Query("SELECT * FROM matches WHERE isFinished = 1 ORDER BY id DESC")
     fun observeFinishedMatches(): Flow<List<MatchWithDetails>>
 
+    @Query("DELETE FROM match_events WHERE matchId = :matchId")
+    suspend fun deleteAllEventsByMatchId(matchId: Int)
+
     @Transaction
     @Query("SELECT * FROM matches WHERE id = :matchId LIMIT 1")
     suspend fun getMatchWithDetails(matchId: Int): MatchWithDetails?

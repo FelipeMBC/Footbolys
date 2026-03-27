@@ -198,7 +198,7 @@ fun PlayersMasterScreen(
                             matchInCourse -> {
                                 Toast.makeText(
                                     context,
-                                    "Partido en curso. Opción: Ver",
+                                    "Partido en curso...",
                                     Toast.LENGTH_SHORT
                                 ).show()
 

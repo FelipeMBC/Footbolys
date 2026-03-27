@@ -479,8 +479,11 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
             defaultTimestamp = match.finishedAtLabel.ifBlank { "00:00" }
         )
 
+        val rebuiltEvents = (eventsWithoutPlayer + rebuiltEventsForPlayer).toMutableList()
+
         val updatedMatch = match.copy(
-            events = (eventsWithoutPlayer + rebuiltEventsForPlayer).toMutableList()
+            events = rebuiltEvents,
+            opponentGoals = calculateOpponentGoalsFromEvents(rebuiltEvents)
         )
 
         updateFinishedMatch(updatedMatch)
@@ -536,10 +539,13 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
             defaultTimestamp = formatMatchClock(match)
         )
 
+        val rebuiltEvents = (eventsWithoutPlayer + rebuiltEventsForPlayer)
+            .sortedBy { it.minute }
+            .toMutableList()
+
         val updatedMatch = match.copy(
-            events = (eventsWithoutPlayer + rebuiltEventsForPlayer)
-                .sortedBy { it.minute }
-                .toMutableList()
+            events = rebuiltEvents,
+            opponentGoals = calculateOpponentGoalsFromEvents(rebuiltEvents)
         )
         currentMatch = updatedMatch
 
@@ -618,20 +624,128 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
     fun updateOpponentGoals(delta: Int) {
         val match = currentMatch ?: return
+        if (delta == 0) return
+
+        val updatedEvents = match.events.toMutableList()
+        val rivalName = match.rivalName.ifBlank { "Equipo Rival" }
+        val minute = getCurrentMatchMinute(match)
+        val timestamp = formatMatchClock(match)
+
+        if (delta > 0) {
+            repeat(delta) {
+                updatedEvents.add(
+                    MatchEvent(
+                        minute = minute,
+                        type = "Gol Rival",
+                        playerId = null,
+                        playerName = rivalName,
+                        detail = "Gol Rival: 1",
+                        timestampLabel = timestamp
+                    )
+                )
+            }
+        } else {
+            repeat(-delta) {
+                decreaseOrRemoveLastEventOfType(updatedEvents, "Gol Rival")
+            }
+        }
+
         val updatedMatch = match.copy(
-            opponentGoals = (match.opponentGoals + delta).coerceAtLeast(0)
+            events = updatedEvents,
+            opponentGoals = calculateOpponentGoalsFromEvents(updatedEvents)
         )
+
         currentMatch = updatedMatch
-        viewModelScope.launch { repository.updateMatch(updatedMatch) }
+
+        viewModelScope.launch {
+            repository.replaceAllMatchEvents(updatedMatch.id, updatedEvents)
+            repository.updateMatch(updatedMatch)
+        }
     }
 
     fun updateOpponentGoalChances(delta: Int) {
         val match = currentMatch ?: return
+        if (delta == 0) return
+
+        val updatedEvents = match.events.toMutableList()
+        val rivalName = match.rivalName.ifBlank { "Equipo Rival" }
+        val minute = getCurrentMatchMinute(match)
+        val timestamp = formatMatchClock(match)
+
+        if (delta > 0) {
+            repeat(delta) {
+                updatedEvents.add(
+                    MatchEvent(
+                        minute = minute,
+                        type = "Oportunidad de Gol Rival",
+                        playerId = null,
+                        playerName = rivalName,
+                        detail = "Oportunidad de Gol Rival: 1",
+                        timestampLabel = timestamp
+                    )
+                )
+            }
+        } else {
+            repeat(-delta) {
+                decreaseOrRemoveLastEventOfType(updatedEvents, "Oportunidad de Gol Rival")
+            }
+        }
+
         val updatedMatch = match.copy(
-            opponentGoalChances = (match.opponentGoalChances + delta).coerceAtLeast(0)
+            opponentGoalChances = updatedEvents.sumOf { event ->
+                if (event.type == "Oportunidad de Gol Rival") parseEventCount(event) else 0
+            },
+            events = updatedEvents
         )
+
         currentMatch = updatedMatch
-        viewModelScope.launch { repository.updateMatch(updatedMatch) }
+
+        viewModelScope.launch {
+            repository.replaceAllMatchEvents(updatedMatch.id, updatedEvents)
+            repository.updateMatch(updatedMatch)
+        }
+    }
+
+    private fun calculateOpponentGoalsFromEvents(events: List<MatchEvent>): Int {
+        return events.sumOf { event ->
+            when (event.type) {
+                "Gol Rival", "Gol en Contra" -> parseEventCount(event)
+                else -> 0
+            }
+        }
+    }
+
+    fun getBlockedOpponentGoalRemovalMessage(): String? {
+        val match = currentMatch ?: return null
+
+        val hasManualRivalGoal = match.events.any { it.type == "Gol Rival" }
+        if (hasManualRivalGoal) return null
+
+        val lastOwnGoal = match.events.lastOrNull { it.type == "Gol en Contra" }
+        return if (lastOwnGoal != null) {
+            "No se puede eliminar: Gol en contra por ${lastOwnGoal.playerName}"
+        } else {
+            null
+        }
+    }
+
+    private fun decreaseOrRemoveLastEventOfType(
+        events: MutableList<MatchEvent>,
+        type: String
+    ): Boolean {
+        val index = events.indexOfLast { it.type == type }
+        if (index == -1) return false
+
+        val target = events[index]
+        val currentCount = parseEventCount(target)
+
+        if (currentCount > 1) {
+            events[index] = target.copy(detail = "$type: ${currentCount - 1}")
+        } else {
+            events.removeAt(index)
+        }
+
+        return true
     }
 
     fun selectTeam(team: Team) {

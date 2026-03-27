@@ -314,6 +314,23 @@ class FootballRepository(
         )
     }
 
+    suspend fun replaceAllMatchEvents(
+        matchId: Int,
+        events: List<MatchEvent>
+    ) {
+        matchDao.deleteAllEventsByMatchId(matchId)
+
+        if (events.isEmpty()) return
+
+        var nextEventId = matchDao.getNextEventId()
+
+        matchDao.insertEvents(
+            events.map { event ->
+                event.toEntity(nextEventId++, matchId)
+            }
+        )
+    }
+
     suspend fun deleteMatch(matchId: Int) {
         matchDao.deleteMatch(matchId)
     }
