@@ -79,8 +79,7 @@ fun PlayersMasterScreen(
     val currentMatch = vm.currentMatch
     val context = LocalContext.current
 
-    // Colores dinámicos del equipo
-    val teamColor      = hexToColor(team.shirtColorHex)
+    val teamColor = hexToColor(team.shirtColorHex)
     val teamColorLight = teamColorLight(teamColor)
 
     var showAddDialog by remember { mutableStateOf(false) }
@@ -236,7 +235,9 @@ fun PlayersMasterScreen(
             ) {
                 OutlinedButton(
                     onClick = { navHostController.navigate(Screen.MATCH_TIMELINE.route) },
-                    modifier = Modifier.weight(1f).height(44.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp),
                     shape = RoundedCornerShape(12.dp),
                     border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
                     colors = ButtonDefaults.outlinedButtonColors(
@@ -246,15 +247,9 @@ fun PlayersMasterScreen(
                 ) {
                     Text("Ver partidos", fontSize = 13.sp)
                 }
+
                 OutlinedButton(
-                    onClick = {
-                        Toast.makeText(
-                            context,
-                            "Opción no disponible",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    },
-                    enabled = false,
+                    onClick = { navHostController.navigate(Screen.REPORT_SCREEN.route) },
                     modifier = Modifier
                         .weight(1f)
                         .height(44.dp),
@@ -262,9 +257,7 @@ fun PlayersMasterScreen(
                     border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = SurfaceColor,
-                        contentColor = TextPrimary,
-                        disabledContainerColor = Color(0xFFF3F3F3),
-                        disabledContentColor = Color(0xFF9A9A9A)
+                        contentColor = TextPrimary
                     )
                 ) {
                     Text("Reporte", fontSize = 13.sp)
@@ -322,8 +315,17 @@ fun PlayersMasterScreen(
                                 Spacer(modifier = Modifier.width(12.dp))
 
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(player.name, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
-                                    Text("Camiseta N° ${player.number}", fontSize = 12.sp, color = TextSecondary)
+                                    Text(
+                                        text = player.name,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 15.sp,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = "Camiseta N° ${player.number}",
+                                        fontSize = 12.sp,
+                                        color = TextSecondary
+                                    )
                                 }
 
                                 IconButton(
@@ -391,13 +393,25 @@ fun PlayersMasterScreen(
 
     if (showDeleteDialog && playerToDelete != null) {
         AlertDialog(
-            onDismissRequest = { showDeleteDialog = false; playerToDelete = null },
+            onDismissRequest = {
+                showDeleteDialog = false
+                playerToDelete = null
+            },
             containerColor = SurfaceColor,
             shape = RoundedCornerShape(20.dp),
-            title = { Text("Eliminar jugador", fontWeight = FontWeight.Bold, color = TextPrimary) },
-            text = { Text("¿Eliminar a ${playerToDelete?.name}?", color = TextSecondary) },
+            title = {
+                Text("Eliminar jugador", fontWeight = FontWeight.Bold, color = TextPrimary)
+            },
+            text = {
+                Text("¿Eliminar a ${playerToDelete?.name}?", color = TextSecondary)
+            },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false; playerToDelete = null }) {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        playerToDelete = null
+                    }
+                ) {
                     Text("Cancelar", color = TextSecondary)
                 }
             },
@@ -421,13 +435,25 @@ fun PlayersMasterScreen(
 
     if (showMinPlayersWarning) {
         AlertDialog(
-            onDismissRequest = { showMinPlayersWarning = false; showAddDialog = true },
+            onDismissRequest = {
+                showMinPlayersWarning = false
+                showAddDialog = true
+            },
             containerColor = SurfaceColor,
             shape = RoundedCornerShape(20.dp),
-            title = { Text("Equipo incompleto", fontWeight = FontWeight.Bold, color = TextPrimary) },
-            text = { Text("Hay menos de 5 jugadores. Agrega más para poder iniciar partidos.", color = TextSecondary) },
+            title = {
+                Text("Equipo incompleto", fontWeight = FontWeight.Bold, color = TextPrimary)
+            },
+            text = {
+                Text("Hay menos de 5 jugadores. Agrega más para poder iniciar partidos.", color = TextSecondary)
+            },
             confirmButton = {
-                TextButton(onClick = { showMinPlayersWarning = false; showAddDialog = true }) {
+                TextButton(
+                    onClick = {
+                        showMinPlayersWarning = false
+                        showAddDialog = true
+                    }
+                ) {
                     Text("Agregar jugador", color = teamColor, fontWeight = FontWeight.SemiBold)
                 }
             },

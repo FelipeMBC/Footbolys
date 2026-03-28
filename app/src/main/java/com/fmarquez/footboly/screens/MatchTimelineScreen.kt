@@ -1,5 +1,6 @@
 package com.fmarquez.footboly.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -57,6 +59,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -66,11 +69,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -243,11 +250,11 @@ private fun buildNarrativeLine(
         type == "Corner -" ->
             "“$safePlayerName” envía el balón afuera, corner para $rivalName."
 
-        type == "Tiro Libre a Favor" || type == "Tiro Libre para $teamName" ->
-            "Tiro libre para $teamName tras la jugada de “$safePlayerName”."
+        type == "Tiro Libre a Favor" || type == "Off Side a Favor" || type == "Off Side para $teamName" ->
+            "Ataque de “$rivalName” pero no vale, fuera de Juego para $teamName"
 
-        type == "Tiro Libre en Contra" || type == "Tiro Libre para $rivalName" ->
-            "Infracción de “$safePlayerName” y tiro libre para $rivalName."
+        type == "Tiro Libre en Contra" || type == "Off Side en Contra" || type == "Off Side para $rivalName" ->
+            "Cuando “$safePlayerName” definía para $teamName, el árbitro cobra fuera de juego en favor de “$rivalName”"
 
         type == "Oportunidad de Gol Rival" || type == "Oportunidad de Gol de $rivalName" ->
             "$rivalName se aproxima al arco de $teamName con una clara oportunidad de gol."
@@ -289,8 +296,8 @@ private fun normalizeEventType(type: String, match: MatchRecord? = null): String
         "Balón Recogido en Contra" -> "Balón Perdido"
         "Falta a Favor" -> "Falta para $teamName"
         "Falta en Contra" -> "Falta para $rivalName"
-        "Tiro Libre a Favor" -> "Tiro Libre para $teamName"
-        "Tiro Libre en Contra" -> "Tiro Libre para $rivalName"
+        "Tiro Libre a Favor", "Off Side a Favor" -> "Off Side para $teamName"
+        "Tiro Libre en Contra", "Off Side en Contra" -> "Off Side para $rivalName"
         "Penal a Favor" -> "Penal para $teamName"
         "Penal en Contra" -> "Penal para $rivalName"
         "Oportunidad de Gol Rival" -> "Oportunidad de Gol de $rivalName"
@@ -377,9 +384,20 @@ fun MatchTimelineScreen(
     navHostController: NavHostController
 ) {
     val selectedMatch = vm.selectedFinishedMatch
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+
     var showAllDetailsDialog by remember { mutableStateOf(false) }
     var matchToDelete by remember { mutableStateOf<MatchRecord?>(null) }
     var selectedEventSummary by remember { mutableStateOf<EventSummaryItem?>(null) }
+    var matchToExport by remember { mutableStateOf<MatchRecord?>(null) }
+    var exportedMatchJson by remember { mutableStateOf("") }
+    var showExportDialog by remember { mutableStateOf(false) }
+    var showImportDialog by remember { mutableStateOf(false) }
+    var exportIncludeFullTeam by rememberSaveable { mutableStateOf(false) }
+    var importIncludeFullTeam by rememberSaveable { mutableStateOf(false) }
+    var importJsonText by rememberSaveable { mutableStateOf("") }
+
     val summarizedEvents = selectedMatch?.let { buildEventSummary(it.events, it) } ?: emptyList()
 
     Scaffold(
@@ -404,6 +422,17 @@ fun MatchTimelineScreen(
                         Icon(Icons.Default.ArrowBack, contentDescription = "Volver", tint = TextPrimary)
                     }
                 },
+                actions = {
+                    if (selectedMatch == null) {
+                        TextButton(onClick = { showImportDialog = true }) {
+                            Text(
+                                text = "Importar",
+                                color = TextPrimary,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = BgColor)
             )
         }
@@ -413,6 +442,12 @@ fun MatchTimelineScreen(
                 matches = vm.finishedMatches.sortedByDescending { it.finishedAtMillis ?: it.createdAtMillis },
                 onSelectMatch = { vm.selectFinishedMatch(it) },
                 onEditMatch = { vm.selectFinishedMatch(it) },
+                onExportMatch = {
+                    matchToExport = it
+                    exportIncludeFullTeam = false
+                    exportedMatchJson = vm.exportMatchToJson(it, includeFullTeam = false)
+                    showExportDialog = true
+                },
                 onDeleteMatch = { matchToDelete = it },
                 modifier = Modifier
                     .fillMaxSize()
@@ -643,6 +678,188 @@ fun MatchTimelineScreen(
         )
     }
 
+
+    if (showExportDialog && matchToExport != null) {
+        AlertDialog(
+            onDismissRequest = {
+                showExportDialog = false
+                matchToExport = null
+            },
+            containerColor = SurfaceColor,
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text(
+                    text = "Exportar JSON",
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                val scrollState = rememberScrollState()
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 460.dp)
+                        .verticalScroll(scrollState),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Elige qué deseas incluir en el JSON.",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+
+                    JsonTransferModeOption(
+                        selected = !exportIncludeFullTeam,
+                        title = "Solo historial del partido",
+                        description = "Exporta el partido, sus eventos, minutos y alineación de ese encuentro.",
+                        onClick = {
+                            exportIncludeFullTeam = false
+                            exportedMatchJson = vm.exportMatchToJson(matchToExport!!, includeFullTeam = false)
+                        }
+                    )
+
+                    JsonTransferModeOption(
+                        selected = exportIncludeFullTeam,
+                        title = "Equipo completo + historial del partido",
+                        description = "Agrega además la ficha del equipo y su plantilla completa al JSON.",
+                        onClick = {
+                            exportIncludeFullTeam = true
+                            exportedMatchJson = vm.exportMatchToJson(matchToExport!!, includeFullTeam = true)
+                        }
+                    )
+
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, BorderColor, RoundedCornerShape(12.dp)),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = BgColor),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        SelectionContainer {
+                            Text(
+                                text = exportedMatchJson,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                fontSize = 12.sp,
+                                color = TextPrimary
+                            )
+                        }
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showExportDialog = false
+                        matchToExport = null
+                    }
+                ) {
+                    Text("Cerrar", color = TextSecondary)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(exportedMatchJson))
+                        Toast.makeText(
+                            context,
+                            if (exportIncludeFullTeam) "JSON del equipo y partido copiado" else "JSON del partido copiado",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                ) {
+                    Text("Copiar", color = TextPrimary, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                }
+            }
+        )
+    }
+
+    if (showImportDialog) {
+        AlertDialog(
+            onDismissRequest = { showImportDialog = false },
+            containerColor = SurfaceColor,
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text(
+                    text = "Importar JSON",
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Pega aquí el JSON exportado desde otro celular y elige cómo deseas importarlo.",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+
+                    OutlinedTextField(
+                        value = importJsonText,
+                        onValueChange = { importJsonText = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 180.dp, max = 320.dp),
+                        minLines = 8,
+                        maxLines = 14,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    JsonTransferModeOption(
+                        selected = !importIncludeFullTeam,
+                        title = "Importar solo historial del partido",
+                        description = "Guarda únicamente el partido en el equipo actualmente seleccionado.",
+                        onClick = { importIncludeFullTeam = false }
+                    )
+
+                    JsonTransferModeOption(
+                        selected = importIncludeFullTeam,
+                        title = "Importar equipo completo + historial",
+                        description = "Crea o actualiza el equipo del JSON y luego importa el partido.",
+                        onClick = { importIncludeFullTeam = true }
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showImportDialog = false }) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        vm.importMatchFromJson(
+                            jsonText = importJsonText,
+                            includeFullTeam = importIncludeFullTeam,
+                            onSuccess = {
+                                showImportDialog = false
+                                importJsonText = ""
+                                Toast.makeText(
+                                    context,
+                                    if (importIncludeFullTeam) {
+                                        "Equipo y partido importados correctamente"
+                                    } else {
+                                        "Historial del partido importado correctamente"
+                                    },
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            },
+                            onError = { errorMessage ->
+                                Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
+                            }
+                        )
+                    }
+                ) {
+                    Text("Importar", color = TextPrimary, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                }
+            }
+        )
+    }
+
     if (matchToDelete != null) {
         AlertDialog(
             onDismissRequest = { matchToDelete = null },
@@ -696,10 +913,66 @@ fun MatchTimelineScreen(
 }
 
 @Composable
+private fun JsonTransferModeOption(
+    selected: Boolean,
+    title: String,
+    description: String,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .border(
+                1.dp,
+                if (selected) TextPrimary else BorderColor,
+                RoundedCornerShape(12.dp)
+            ),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) BgColor else SurfaceColor
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (selected) Icons.Default.RadioButtonChecked else Icons.Default.Cancel,
+                contentDescription = null,
+                tint = if (selected) TextPrimary else TextSecondary,
+                modifier = Modifier.size(18.dp)
+            )
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    fontSize = 13.sp,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    color = TextPrimary
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = description,
+                    fontSize = 11.sp,
+                    color = TextSecondary
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun MatchHistoryList(
     matches: List<MatchRecord>,
     onSelectMatch: (MatchRecord) -> Unit,
     onEditMatch: (MatchRecord) -> Unit,
+    onExportMatch: (MatchRecord) -> Unit,
     onDeleteMatch: (MatchRecord) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -831,6 +1104,16 @@ fun MatchHistoryList(
                                     onClick = {
                                         expanded = false
                                         onEditMatch(match)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Exportar JSON", color = TextPrimary) },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Send, contentDescription = null, tint = TextSecondary)
+                                    },
+                                    onClick = {
+                                        expanded = false
+                                        onExportMatch(match)
                                     }
                                 )
                                 DropdownMenuItem(
@@ -1608,8 +1891,7 @@ fun eventIcon(type: String, detail: String = "", match: MatchRecord? = null): Im
         normalizedType.startsWith("Falta para") -> Icons.Default.Cancel
         normalizedType.startsWith("Corner +") -> Icons.Default.NorthEast
         normalizedType.startsWith("Corner -") -> Icons.Default.SouthWest
-        normalizedType.startsWith("Tiro Libre para") -> Icons.Default.RadioButtonChecked
-        normalizedType.startsWith("Tiro Libre para") -> Icons.Default.Cancel
+        normalizedType.startsWith("Off Side para") -> Icons.Default.Cancel
         normalizedType.startsWith("Penal para") -> Icons.Default.SportsSoccer
         normalizedType.startsWith("Penal para") -> Icons.Default.HighlightOff
 

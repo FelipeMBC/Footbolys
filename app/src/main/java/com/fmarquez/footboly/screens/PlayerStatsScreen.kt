@@ -102,8 +102,8 @@ private object StatKey {
     const val FALTA_CONTRA = "FALTA_CONTRA"
     const val CORNER_POS = "CORNER_POS"
     const val CORNER_NEG = "CORNER_NEG"
-    const val TIRO_LIBRE_FAVOR = "TIRO_LIBRE_FAVOR"
-    const val TIRO_LIBRE_CONTRA = "TIRO_LIBRE_CONTRA"
+    const val OFFSIDE_FAVOR = "OFFSIDE_FAVOR"
+    const val OFFSIDE_CONTRA = "OFFSIDE_CONTRA"
     const val PENAL_FAVOR = "PENAL_FAVOR"
     const val PENAL_CONTRA = "PENAL_CONTRA"
 
@@ -1204,9 +1204,9 @@ private fun StatsSectionContent(
 
                     CompactFavorContraCard(
                         modifier = Modifier.weight(1f),
-                        title = "Tiro libre",
-                        favorValue = draftValue(currentDraft, StatKey.TIRO_LIBRE_FAVOR),
-                        contraValue = draftValue(currentDraft, StatKey.TIRO_LIBRE_CONTRA),
+                        title = "Off Side",
+                        favorValue = draftValue(currentDraft, StatKey.OFFSIDE_FAVOR),
+                        contraValue = draftValue(currentDraft, StatKey.OFFSIDE_CONTRA),
                         favorAccent = teamColor,
                         favorLight = teamColorLight,
                         contraAccent = ErrorRed,
@@ -1217,7 +1217,7 @@ private fun StatsSectionContent(
                             vm.updatePlayerStatsDraft(
                                 increaseStat(
                                     vm.getOrCreatePlayerStatsDraft(player.id),
-                                    StatKey.TIRO_LIBRE_FAVOR
+                                    StatKey.OFFSIDE_FAVOR
                                 )
                             )
                         },
@@ -1225,7 +1225,7 @@ private fun StatsSectionContent(
                             vm.updatePlayerStatsDraft(
                                 decreaseStat(
                                     vm.getOrCreatePlayerStatsDraft(player.id),
-                                    StatKey.TIRO_LIBRE_FAVOR
+                                    StatKey.OFFSIDE_FAVOR
                                 )
                             )
                         },
@@ -1233,7 +1233,7 @@ private fun StatsSectionContent(
                             vm.updatePlayerStatsDraft(
                                 increaseStat(
                                     vm.getOrCreatePlayerStatsDraft(player.id),
-                                    StatKey.TIRO_LIBRE_CONTRA
+                                    StatKey.OFFSIDE_CONTRA
                                 )
                             )
                         },
@@ -1241,7 +1241,7 @@ private fun StatsSectionContent(
                             vm.updatePlayerStatsDraft(
                                 decreaseStat(
                                     vm.getOrCreatePlayerStatsDraft(player.id),
-                                    StatKey.TIRO_LIBRE_CONTRA
+                                    StatKey.OFFSIDE_CONTRA
                                 )
                             )
                         }
@@ -1694,8 +1694,8 @@ private fun draftValue(draft: PlayerStatsDraft, key: String): Int = when (key) {
     StatKey.FALTA_CONTRA -> draft.faltaContra
     StatKey.CORNER_POS -> draft.cornerPositivo
     StatKey.CORNER_NEG -> draft.cornerNegativo
-    StatKey.TIRO_LIBRE_FAVOR -> draft.tiroLibreFavor
-    StatKey.TIRO_LIBRE_CONTRA -> draft.tiroLibreContra
+    StatKey.OFFSIDE_FAVOR -> draft.tiroLibreFavor
+    StatKey.OFFSIDE_CONTRA -> draft.tiroLibreContra
     StatKey.PENAL_FAVOR -> draft.penalFavor
     StatKey.PENAL_CONTRA -> draft.penalContra
 
@@ -1727,8 +1727,8 @@ private fun increaseStat(draft: PlayerStatsDraft, key: String): PlayerStatsDraft
     StatKey.FALTA_CONTRA -> draft.copy(faltaContra = draft.faltaContra + 1)
     StatKey.CORNER_POS -> draft.copy(cornerPositivo = draft.cornerPositivo + 1)
     StatKey.CORNER_NEG -> draft.copy(cornerNegativo = draft.cornerNegativo + 1)
-    StatKey.TIRO_LIBRE_FAVOR -> draft.copy(tiroLibreFavor = draft.tiroLibreFavor + 1)
-    StatKey.TIRO_LIBRE_CONTRA -> draft.copy(tiroLibreContra = draft.tiroLibreContra + 1)
+    StatKey.OFFSIDE_FAVOR -> draft.copy(tiroLibreFavor = draft.tiroLibreFavor + 1)
+    StatKey.OFFSIDE_CONTRA -> draft.copy(tiroLibreContra = draft.tiroLibreContra + 1)
     StatKey.PENAL_FAVOR -> draft.copy(penalFavor = draft.penalFavor + 1)
     StatKey.PENAL_CONTRA -> draft.copy(penalContra = draft.penalContra + 1)
 
@@ -1760,8 +1760,8 @@ private fun decreaseStat(draft: PlayerStatsDraft, key: String): PlayerStatsDraft
     StatKey.FALTA_CONTRA -> draft.copy(faltaContra = (draft.faltaContra - 1).coerceAtLeast(0))
     StatKey.CORNER_POS -> draft.copy(cornerPositivo = (draft.cornerPositivo - 1).coerceAtLeast(0))
     StatKey.CORNER_NEG -> draft.copy(cornerNegativo = (draft.cornerNegativo - 1).coerceAtLeast(0))
-    StatKey.TIRO_LIBRE_FAVOR -> draft.copy(tiroLibreFavor = (draft.tiroLibreFavor - 1).coerceAtLeast(0))
-    StatKey.TIRO_LIBRE_CONTRA -> draft.copy(tiroLibreContra = (draft.tiroLibreContra - 1).coerceAtLeast(0))
+    StatKey.OFFSIDE_FAVOR -> draft.copy(tiroLibreFavor = (draft.tiroLibreFavor - 1).coerceAtLeast(0))
+    StatKey.OFFSIDE_CONTRA -> draft.copy(tiroLibreContra = (draft.tiroLibreContra - 1).coerceAtLeast(0))
     StatKey.PENAL_FAVOR -> draft.copy(penalFavor = (draft.penalFavor - 1).coerceAtLeast(0))
     StatKey.PENAL_CONTRA -> draft.copy(penalContra = (draft.penalContra - 1).coerceAtLeast(0))
 

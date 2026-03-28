@@ -290,6 +290,116 @@ class FootballRepository(
         )
     }
 
+    suspend fun syncImportedPlayersToTeam(
+        teamId: Int,
+        players: List<Player>
+    ): Team {
+        val cleanedPlayers = players
+            .mapNotNull { player ->
+                val cleanedName = player.name.trim()
+                val cleanedNumber = player.number
+                if (cleanedName.isBlank() || cleanedNumber <= 0) null
+                else player.copy(name = cleanedName, number = cleanedNumber)
+            }
+            .distinctBy { it.number }
+            .take(30)
+
+        if (cleanedPlayers.isEmpty()) {
+            return requireNotNull(teamDao.getTeamWithPlayers(teamId)).toDomain()
+        }
+
+        val currentPlayers = teamDao.getPlayersByTeam(teamId)
+        val availableSlots = (30 - currentPlayers.size).coerceAtLeast(0)
+        if (availableSlots > 0) {
+            var nextPlayerId = teamDao.getNextPlayerId()
+            val playersToInsert = cleanedPlayers
+                .filter { imported ->
+                    currentPlayers.none { current ->
+                        current.number == imported.number ||
+                                current.name.trim().equals(imported.name.trim(), ignoreCase = true)
+                    }
+                }
+                .take(availableSlots)
+
+            if (playersToInsert.isNotEmpty()) {
+                teamDao.insertPlayers(
+                    playersToInsert.map { player ->
+                        PlayerEntity(
+                            id = nextPlayerId++,
+                            teamId = teamId,
+                            name = player.name,
+                            number = player.number
+                        )
+                    }
+                )
+            }
+        }
+
+        return requireNotNull(teamDao.getTeamWithPlayers(teamId)).toDomain()
+    }
+
+    suspend fun createImportedTeam(
+        teamName: String,
+        teamEmoji: String,
+        players: List<Player>,
+        logoUri: String? = null,
+        shirtColorHex: String = "#1E6B45"
+    ): Team {
+        val cleanedTeamName = teamName.trim().ifBlank { "Equipo Importado" }
+        val cleanedPlayers = players
+            .mapNotNull { player ->
+                val cleanedName = player.name.trim()
+                val cleanedNumber = player.number
+                if (cleanedName.isBlank() || cleanedNumber <= 0) null
+                else player.copy(name = cleanedName, number = cleanedNumber)
+            }
+            .distinctBy { it.number }
+            .take(30)
+
+        val teamId = teamDao.getNextTeamId()
+        var nextPlayerId = teamDao.getNextPlayerId()
+
+        val finalEmoji = if (teamEmoji.isBlank()) "⚽" else teamEmoji.trim()
+        val finalShirtColor = shirtColorHex.ifBlank { "#1E6B45" }
+
+        teamDao.insertTeam(
+            TeamEntity(
+                id = teamId,
+                name = cleanedTeamName,
+                logoEmoji = finalEmoji,
+                logoUri = logoUri,
+                shirtColorHex = finalShirtColor
+            )
+        )
+
+        if (cleanedPlayers.isNotEmpty()) {
+            teamDao.insertPlayers(
+                cleanedPlayers.map { player ->
+                    PlayerEntity(
+                        id = nextPlayerId++,
+                        teamId = teamId,
+                        name = player.name,
+                        number = player.number
+                    )
+                }
+            )
+        }
+
+        return requireNotNull(teamDao.getTeamWithPlayers(teamId)).toDomain()
+    }
+
+    suspend fun importMatch(match: MatchRecord): MatchRecord {
+        val importedMatchId = matchDao.getNextMatchId()
+        val importedMatch = match.copy(id = importedMatchId)
+
+        matchDao.insertMatch(importedMatch.toEntity())
+        saveLineup(importedMatch)
+        savePlayerTimes(importedMatch)
+        replaceAllMatchEvents(importedMatch.id, importedMatch.events)
+
+        return requireNotNull(matchDao.getMatchWithDetails(importedMatchId)).toDomain()
+    }
+
     suspend fun deleteMatch(matchId: Int) {
         matchDao.deleteMatch(matchId)
     }

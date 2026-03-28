@@ -1,79 +1,91 @@
 package com.fmarquez.footboly.screens
 
-import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Downloading
-import androidx.compose.material.icons.filled.Healing
-import androidx.compose.material.icons.filled.StackedLineChart
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
-import com.fmarquez.footboly.dialog.MatchSwapDialog
+import com.fmarquez.footboly.modelos.MatchRecord
 import com.fmarquez.footboly.modelos.Player
-import com.fmarquez.footboly.navigation.Screen
-import com.fmarquez.footboly.util.hexToColor
-import com.fmarquez.footboly.util.teamColorLight
+import com.fmarquez.footboly.modelos.ReportMetricDefinition
+import com.fmarquez.footboly.modelos.ReportMetricKind
+import com.fmarquez.footboly.modelos.ReportPlayerStatRow
+import com.fmarquez.footboly.modelos.ReportPlayerSummary
+import com.fmarquez.footboly.modelos.ReportRankingRow
+import com.fmarquez.footboly.modelos.ReportTimeBreakdown
 import com.fmarquez.footboly.vm.FutbolViewModel
-import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.math.roundToInt
 
-private val BgColor       = Color(0xFFF7F7F5)
-private val SurfaceColor  = Color(0xFFFFFFFF)
-private val TextPrimary   = Color(0xFF111111)
-private val TextSecondary = Color(0xFF888888)
-private val BorderColor   = Color(0xFFE0E0DC)
-private val ErrorRed      = Color(0xFFD32F2F)
-private val ErrorRedLight = Color(0xFFFFF1F1)
-private val InjuryAmber   = Color(0xFFE65100)
-private val InjuryLight   = Color(0xFFFFF3E0)
-private val BlockedGray   = Color(0xFFEAEAEA)
-private val BlockedText   = Color(0xFF8C8C8C)
+private val ReportsBg = Color(0xFFF4F4F2)
+private val ReportsSurface = Color(0xFFFFFFFF)
+private val ReportsText = Color(0xFF111111)
+private val ReportsTextSecondary = Color(0xFF666666)
+private val ReportsBlue = Color(0xFF125F84)
+private val ReportsBlueDark = Color(0xFF0D3B53)
+private val ReportsGreen = Color(0xFF58B12C)
+private val ReportsGreenLight = Color(0xFFF5FBF0)
+private val ReportsBorder = Color(0xFFE3E3DF)
+private val ReportsMuted = Color(0xFFF2F2F0)
+
+private enum class ReportSection(val title: String) {
+    RANKING("Ranking"),
+    METRICS_BY_TIME("Métricas por Tiempo"),
+    STATS("Estadísticas")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,484 +93,925 @@ fun ReporteScreen(
     vm: FutbolViewModel,
     navHostController: NavHostController
 ) {
-    val context = LocalContext.current
-    val team = vm.selectedTeam ?: return
-    val match = vm.currentMatch ?: return
+    val selectedTeam = vm.selectedTeam
+    val rankingMetrics = vm.getReportRankingMetrics()
+    val timelineMetrics = vm.getReportTimelineMetrics()
+    val finishedMatches = vm.getReportMatchesForSelectedTeam()
+    val players = vm.getReportPlayers()
 
-    val displayedStarters = vm.getCurrentStarters(match)
-    val displayedSubstitutes = vm.getCurrentSubstitutes(match)
-    val expelledPlayers = match.expelledPlayers.sortedBy { it.number }
-    val injuredPlayers = match.injuredPlayers.sortedBy { it.number }
+    var selectedSection by rememberSaveable { mutableStateOf(ReportSection.RANKING) }
+    var selectedRankingMetricKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedTimelineMetricKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedTimelineMatchId by rememberSaveable { mutableStateOf<Int?>(null) }
+    var selectedPlayerId by rememberSaveable { mutableStateOf<Int?>(null) }
 
-    val liveTick by produceState(initialValue = 0, key1 = match.isStarted, key2 = match.isFinished) {
-        while (match.isStarted && !match.isFinished) {
-            delay(1000)
-            value++
+    LaunchedEffect(rankingMetrics) {
+        val current = selectedRankingMetricKey
+        if (current == null || rankingMetrics.none { it.key == current }) {
+            selectedRankingMetricKey = rankingMetrics.firstOrNull()?.key
         }
     }
 
-    val teamColor = hexToColor(team.shirtColorHex)
-    val teamColorLight = teamColorLight(teamColor)
-
-    var showSwapDialog by remember { mutableStateOf(false) }
-    var starterToSwap by remember { mutableStateOf<Player?>(null) }
-    var selectedSubstitute by remember { mutableStateOf<Player?>(null) }
-    var showStopMatchDialog by remember { mutableStateOf(false) }
-
-    BackHandler(enabled = !match.isFinished) {
-        Toast.makeText(context, "Debes finalizar el partido para salir del reporte", Toast.LENGTH_SHORT).show()
-    }
-
-    LaunchedEffect(match.isFinished) {
-        if (match.isFinished) {
-            vm.selectFinishedMatch(match)
-            navHostController.navigate(Screen.MATCH_TIMELINE.route) {
-                popUpTo(navHostController.graph.findStartDestination().id) { inclusive = false }
-                launchSingleTop = true
-                restoreState = false
-            }
+    LaunchedEffect(timelineMetrics) {
+        val current = selectedTimelineMetricKey
+        if (current == null || timelineMetrics.none { it.key == current }) {
+            selectedTimelineMetricKey = timelineMetrics.firstOrNull()?.key
         }
     }
+
+    LaunchedEffect(players) {
+        val current = selectedPlayerId
+        if (current == null || players.none { it.id == current }) {
+            selectedPlayerId = players.firstOrNull()?.id
+        }
+    }
+
+    val selectedRankingMetric = rankingMetrics.firstOrNull { it.key == selectedRankingMetricKey }
+    val selectedTimelineMetric = timelineMetrics.firstOrNull { it.key == selectedTimelineMetricKey }
+    val rankingRows = selectedRankingMetricKey?.let(vm::buildReportRanking).orEmpty()
+    val timeBreakdown = selectedTimelineMetricKey?.let { vm.buildReportTimeBreakdown(it, selectedTimelineMatchId) }
+    val playerSummary = selectedPlayerId?.let(vm::buildPlayerReport)
+
+    val isLoading = selectedTeam == null && vm.teams.isEmpty()
+    val hasHistory = finishedMatches.isNotEmpty()
 
     Scaffold(
-        containerColor = BgColor,
+        containerColor = ReportsBg,
         topBar = {
             TopAppBar(
                 title = {
                     Column {
                         Text(
-                            text = if (match.isFinished) "Partido terminado" else vm.getFormattedMatchTime(),
+                            text = "Reportes",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = TextPrimary
+                            fontSize = 24.sp,
+                            color = ReportsText
                         )
-                        Text(
-                            text = team.name,
-                            fontSize = 12.sp,
-                            color = TextSecondary
-                        )
+                        selectedTeam?.let {
+                            Text(
+                                text = it.name,
+                                fontSize = 12.sp,
+                                color = ReportsTextSecondary
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            if (!match.isFinished) {
-                                Toast.makeText(context, "Debes finalizar el partido para salir", Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    ) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Volver", tint = TextSecondary)
+                    IconButton(onClick = { navHostController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Volver",
+                            tint = ReportsText
+                        )
                     }
                 },
-                actions = {
-                    if (!match.isFinished) {
-                        TextButton(
-                            onClick = { showStopMatchDialog = true },
-                            colors = ButtonDefaults.textButtonColors(contentColor = ErrorRed)
-                        ) {
-                            Text("Finalizar", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = BgColor)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = ReportsBg)
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 20.dp)
-        ) {
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Titulares",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    color = TextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
-                Box(
+        when {
+            isLoading -> {
+                ReportCenteredState(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(teamColorLight)
-                        .padding(horizontal = 10.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        "${displayedStarters.size}",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = teamColor
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = SurfaceColor),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                LazyColumn(
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(0.dp)
-                ) {
-                    items(items = displayedStarters, key = { player -> player.id }) { player ->
-                        val playerTime = vm.getFormattedPlayerTime(player.id, vm.currentMatch)
-                        PlayerRowItem(
-                            player = player,
-                            role = "Titular",
-                            teamColor = teamColor,
-                            teamColorLight = teamColorLight,
-                            playedTime = playerTime,
-                            showStats = true,
-                            showSwap = !match.isFinished && displayedSubstitutes.isNotEmpty(),
-                            onStats = {
-                                vm.selectPlayerForStats(player.id)
-                                navHostController.navigate(Screen.PLAYER_STATS.route)
-                            },
-                            onSwap = {
-                                starterToSwap = player
-                                selectedSubstitute = null
-                                showSwapDialog = true
-                            }
-                        )
-                        HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
-                    }
-
-                    if (expelledPlayers.isNotEmpty()) {
-                        item {
-                            BlockHeader(
-                                title = "Expulsados",
-                                count = expelledPlayers.size,
-                                accentColor = ErrorRed,
-                                accentLight = ErrorRedLight
-                            )
-                        }
-
-                        items(items = expelledPlayers, key = { player -> player.id }) { player ->
-                            BlockedPlayerRowItem(
-                                player = player,
-                                reason = "Expulsado",
-                                accentColor = ErrorRed,
-                                accentLight = ErrorRedLight
-                            )
-                            HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
-                        }
-                    }
-
-                    if (injuredPlayers.isNotEmpty()) {
-                        item {
-                            BlockHeader(
-                                title = "Lesionados",
-                                count = injuredPlayers.size,
-                                accentColor = InjuryAmber,
-                                accentLight = InjuryLight
-                            )
-                        }
-
-                        items(items = injuredPlayers, key = { player -> player.id }) { player ->
-                            BlockedPlayerRowItem(
-                                player = player,
-                                reason = "Lesionado",
-                                accentColor = InjuryAmber,
-                                accentLight = InjuryLight
-                            )
-                            HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Reservas",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 15.sp,
-                    color = TextPrimary,
-                    modifier = Modifier.weight(1f)
+                        .fillMaxSize()
+                        .padding(padding),
+                    title = "Cargando datos",
+                    subtitle = "Esperando equipos y partidos guardados.",
+                    loading = true
                 )
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xFFF5F5F5))
-                        .padding(horizontal = 10.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        "${displayedSubstitutes.size}",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextSecondary
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            selectedTeam == null -> {
+                ReportCenteredState(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    title = "Sin equipo seleccionado",
+                    subtitle = "Selecciona un equipo para ver sus reportes históricos."
+                )
+            }
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(0.6f)
-                    .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
-                shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = SurfaceColor),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-            ) {
-                if (displayedSubstitutes.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(20.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("Sin reservas disponibles", color = TextSecondary, fontSize = 13.sp)
-                    }
-                } else {
-                    LazyColumn(modifier = Modifier.padding(horizontal = 4.dp)) {
-                        items(items = displayedSubstitutes, key = { player -> player.id }) { player ->
-                            val playerTime = vm.getFormattedPlayerTime(player.id, vm.currentMatch)
-                            PlayerRowItem(
-                                player = player,
-                                role = "Reserva",
-                                teamColor = teamColor,
-                                teamColorLight = teamColorLight,
-                                playedTime = playerTime
+            !hasHistory -> {
+                ReportCenteredState(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    title = "Sin historial disponible",
+                    subtitle = "Este equipo todavía no tiene partidos finalizados guardados."
+                )
+            }
+
+            else -> {
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                    val compact = maxWidth < 980.dp
+
+                    if (compact) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            ReportsLeftMenu(
+                                selectedSection = selectedSection,
+                                onSectionSelected = { selectedSection = it },
+                                modifier = Modifier.fillMaxWidth()
                             )
-                            HorizontalDivider(color = BorderColor, thickness = 0.5.dp)
+
+                            ReportsMainContent(
+                                section = selectedSection,
+                                rankingMetric = selectedRankingMetric,
+                                rankingRows = rankingRows,
+                                timeBreakdown = timeBreakdown,
+                                playerSummary = playerSummary,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            ReportsSidePanel(
+                                section = selectedSection,
+                                rankingMetrics = rankingMetrics,
+                                selectedRankingMetricKey = selectedRankingMetricKey,
+                                onRankingMetricSelected = { selectedRankingMetricKey = it },
+                                timelineMetrics = timelineMetrics,
+                                selectedTimelineMetric = selectedTimelineMetric,
+                                onTimelineMetricSelected = { selectedTimelineMetricKey = it },
+                                matches = finishedMatches,
+                                selectedTimelineMatchId = selectedTimelineMatchId,
+                                onTimelineMatchSelected = { selectedTimelineMatchId = it },
+                                players = players,
+                                selectedPlayerId = selectedPlayerId,
+                                onPlayerSelected = { selectedPlayerId = it },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 18.dp, vertical = 14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(18.dp),
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            ReportsLeftMenu(
+                                selectedSection = selectedSection,
+                                onSectionSelected = { selectedSection = it },
+                                modifier = Modifier.weight(0.95f)
+                            )
+
+                            ReportsMainContent(
+                                section = selectedSection,
+                                rankingMetric = selectedRankingMetric,
+                                rankingRows = rankingRows,
+                                timeBreakdown = timeBreakdown,
+                                playerSummary = playerSummary,
+                                modifier = Modifier.weight(1.8f)
+                            )
+
+                            ReportsSidePanel(
+                                section = selectedSection,
+                                rankingMetrics = rankingMetrics,
+                                selectedRankingMetricKey = selectedRankingMetricKey,
+                                onRankingMetricSelected = { selectedRankingMetricKey = it },
+                                timelineMetrics = timelineMetrics,
+                                selectedTimelineMetric = selectedTimelineMetric,
+                                onTimelineMetricSelected = { selectedTimelineMetricKey = it },
+                                matches = finishedMatches,
+                                selectedTimelineMatchId = selectedTimelineMatchId,
+                                onTimelineMatchSelected = { selectedTimelineMatchId = it },
+                                players = players,
+                                selectedPlayerId = selectedPlayerId,
+                                onPlayerSelected = { selectedPlayerId = it },
+                                modifier = Modifier.weight(1.0f)
+                            )
                         }
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
         }
     }
+}
 
-    if (showStopMatchDialog) {
-        AlertDialog(
-            onDismissRequest = { showStopMatchDialog = false },
-            containerColor = SurfaceColor,
-            shape = RoundedCornerShape(20.dp),
-            title = { Text("Finalizar partido", fontWeight = FontWeight.Bold, color = TextPrimary) },
-            text = { Text("¿Estás seguro de finalizar el partido?", color = TextSecondary) },
-            dismissButton = {
-                TextButton(onClick = { showStopMatchDialog = false }) {
-                    Text("Cancelar", color = TextSecondary)
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { vm.stopMatch(); showStopMatchDialog = false }) {
-                    Text("Finalizar", color = ErrorRed, fontWeight = FontWeight.SemiBold)
-                }
-            }
+@Composable
+private fun ReportsMainContent(
+    section: ReportSection,
+    rankingMetric: ReportMetricDefinition?,
+    rankingRows: List<ReportRankingRow>,
+    timeBreakdown: ReportTimeBreakdown?,
+    playerSummary: ReportPlayerSummary?,
+    modifier: Modifier = Modifier
+) {
+    when (section) {
+        ReportSection.RANKING -> RankingContent(
+            metric = rankingMetric,
+            rows = rankingRows,
+            modifier = modifier
         )
-    }
 
-    if (showSwapDialog && starterToSwap != null) {
-        MatchSwapDialog(
-            starter = starterToSwap!!,
-            substitutes = displayedSubstitutes,
-            selectedSubstitute = selectedSubstitute,
-            onSelectSubstitute = { selectedSubstitute = it },
-            onDismiss = {
-                showSwapDialog = false
-                starterToSwap = null
-                selectedSubstitute = null
-            },
-            onConfirm = {
-                val starter = starterToSwap
-                val substitute = selectedSubstitute
-                if (starter != null && substitute != null) {
-                    vm.registerSwap(starter = starter, sub = substitute)
-                    Toast.makeText(context, "Cambio registrado", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(context, "Selecciona una reserva", Toast.LENGTH_SHORT).show()
-                    return@MatchSwapDialog
-                }
-                showSwapDialog = false
-                starterToSwap = null
-                selectedSubstitute = null
-            }
+        ReportSection.METRICS_BY_TIME -> MetricsByTimeContent(
+            breakdown = timeBreakdown,
+            modifier = modifier
+        )
+
+        ReportSection.STATS -> PlayerStatsReportContent(
+            summary = playerSummary,
+            modifier = modifier
         )
     }
 }
 
 @Composable
-private fun BlockHeader(
-    title: String,
-    count: Int,
-    accentColor: Color,
-    accentLight: Color
+private fun ReportsSidePanel(
+    section: ReportSection,
+    rankingMetrics: List<ReportMetricDefinition>,
+    selectedRankingMetricKey: String?,
+    onRankingMetricSelected: (String) -> Unit,
+    timelineMetrics: List<ReportMetricDefinition>,
+    selectedTimelineMetric: ReportMetricDefinition?,
+    onTimelineMetricSelected: (String) -> Unit,
+    matches: List<MatchRecord>,
+    selectedTimelineMatchId: Int?,
+    onTimelineMatchSelected: (Int?) -> Unit,
+    players: List<Player>,
+    selectedPlayerId: Int?,
+    onPlayerSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    ReportsRightPanel(modifier = modifier) {
+        when (section) {
+            ReportSection.RANKING -> {
+                Text(
+                    text = "Categorías",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = ReportsSurface
+                )
+
+                rankingMetrics.forEach { metric ->
+                    ReportsActionButton(
+                        text = metric.label,
+                        selected = metric.key == selectedRankingMetricKey,
+                        onClick = { onRankingMetricSelected(metric.key) }
+                    )
+                }
+            }
+
+            ReportSection.METRICS_BY_TIME -> {
+                Text(
+                    text = "Filtros",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = ReportsSurface
+                )
+
+                ReportsDropdownButton(
+                    label = selectedTimelineMetric?.label ?: "Métrica",
+                    options = timelineMetrics.map { it.label to it.key },
+                    onOptionSelected = onTimelineMetricSelected
+                )
+
+                ReportsDropdownButton(
+                    label = selectedTimelineMatchId?.let { id ->
+                        matches.firstOrNull { it.id == id }?.let(::reportMatchLabel)
+                    } ?: "Todos los partidos",
+                    options = buildList {
+                        add("Todos los partidos" to "ALL")
+                        addAll(matches.map { reportMatchLabel(it) to it.id.toString() })
+                    },
+                    onOptionSelected = { value ->
+                        onTimelineMatchSelected(value.takeUnless { it == "ALL" }?.toIntOrNull())
+                    }
+                )
+            }
+
+            ReportSection.STATS -> {
+                Text(
+                    text = "Jugadores",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = ReportsSurface
+                )
+
+                players.forEach { player ->
+                    ReportsActionButton(
+                        text = "#${player.number} ${player.name}",
+                        selected = player.id == selectedPlayerId,
+                        onClick = { onPlayerSelected(player.id) }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportsLeftMenu(
+    selectedSection: ReportSection,
+    onSectionSelected: (ReportSection) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(34.dp),
+        colors = CardDefaults.cardColors(containerColor = ReportsBlue),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            ReportSection.entries.forEach { section ->
+                ReportsMenuButton(
+                    text = section.title,
+                    selected = selectedSection == section,
+                    onClick = { onSectionSelected(section) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportsRightPanel(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(34.dp),
+        colors = CardDefaults.cardColors(containerColor = ReportsBlue),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content
+        )
+    }
+}
+
+@Composable
+private fun RankingContent(
+    metric: ReportMetricDefinition?,
+    rows: List<ReportRankingRow>,
+    modifier: Modifier = Modifier
+) {
+    ReportCardShell(
+        title = metric?.label ?: "Ranking",
+        subtitle = "Totales y promedios históricos por jugador.",
+        modifier = modifier
+    ) {
+        if (metric == null) {
+            ReportInnerEmpty("No hay categorías disponibles.")
+            return@ReportCardShell
+        }
+
+        if (rows.isEmpty()) {
+            ReportInnerEmpty("No hay registros históricos para esta categoría.")
+            return@ReportCardShell
+        }
+
+        ReportsTableHeader(
+            columns = listOf(
+                TableColumn("Pos", 0.14f),
+                TableColumn("Jugador", 0.42f),
+                TableColumn("Total", 0.16f, TextAlign.End),
+                TableColumn("Prom", 0.16f, TextAlign.End),
+                TableColumn("PJ", 0.12f, TextAlign.End)
+            )
+        )
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 220.dp, max = 560.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(rows, key = { "${metric.key}_${it.playerId}" }) { row ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(ReportsSurface, RoundedCornerShape(16.dp))
+                        .border(1.dp, ReportsBorder, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TableCell("${row.position}°", 0.14f, fontWeight = FontWeight.Bold)
+                    TableCell("#${row.shirtNumber} ${row.playerName}", 0.42f)
+                    TableCell(formatMetricValue(metric, row.total), 0.16f, textAlign = TextAlign.End)
+                    TableCell(formatAverageValue(metric, row.average), 0.16f, textAlign = TextAlign.End)
+                    TableCell(row.matchesPlayed.toString(), 0.12f, textAlign = TextAlign.End)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricsByTimeContent(
+    breakdown: ReportTimeBreakdown?,
+    modifier: Modifier = Modifier
+) {
+    ReportCardShell(
+        title = breakdown?.metric?.label ?: "Métricas por Tiempo",
+        subtitle = breakdown?.matchLabel ?: "Selecciona una métrica temporal.",
+        modifier = modifier
+    ) {
+        if (breakdown == null) {
+            ReportInnerEmpty("No hay información temporal disponible para la selección actual.")
+            return@ReportCardShell
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            breakdown.blocks.forEach { block ->
+                MetricTimeBlockCard(
+                    label = block.label,
+                    total = block.total
+                )
+            }
+
+            MetricTimeBlockCard(
+                label = "Total General",
+                total = breakdown.total,
+                highlighted = true
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlayerStatsReportContent(
+    summary: ReportPlayerSummary?,
+    modifier: Modifier = Modifier
+) {
+    ReportCardShell(
+        title = summary?.let { "#${it.shirtNumber} ${it.playerName}" } ?: "Estadísticas",
+        subtitle = "Resumen histórico individual.",
+        modifier = modifier
+    ) {
+        if (summary == null) {
+            ReportInnerEmpty("Selecciona un jugador con historial disponible.")
+            return@ReportCardShell
+        }
+
+        PlayerSummaryHeader(summary = summary)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        ReportsTableHeader(
+            columns = listOf(
+                TableColumn("Categoría", 0.46f),
+                TableColumn("Total", 0.18f, TextAlign.End),
+                TableColumn("Prom", 0.18f, TextAlign.End),
+                TableColumn("Pos", 0.18f, TextAlign.End)
+            )
+        )
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 220.dp, max = 560.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(summary.stats, key = { it.metric.key }) { row ->
+                PlayerMetricRow(row = row)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerSummaryHeader(summary: ReportPlayerSummary) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(ReportsGreenLight, RoundedCornerShape(18.dp))
+            .border(1.dp, ReportsGreen.copy(alpha = 0.35f), RoundedCornerShape(18.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            SummaryChip(
+                label = "Partidos asistidos",
+                value = "${summary.matchesPlayed}/${summary.teamMatches}",
+                modifier = Modifier.weight(1f)
+            )
+            SummaryChip(
+                label = "Titularidades",
+                value = summary.starts.toString(),
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            SummaryChip(
+                label = "Minutos jugados",
+                value = formatMinutes(summary.totalMinutes),
+                modifier = Modifier.weight(1f)
+            )
+            SummaryChip(
+                label = "Promedio minutos",
+                value = formatMinutes(summary.averageMinutes),
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun SummaryChip(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .background(ReportsSurface, RoundedCornerShape(14.dp))
+            .border(1.dp, ReportsBorder, RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            color = ReportsTextSecondary
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = value,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = ReportsText
+        )
+    }
+}
+
+@Composable
+private fun PlayerMetricRow(row: ReportPlayerStatRow) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(accentLight)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .background(ReportsSurface, RoundedCornerShape(16.dp))
+            .border(1.dp, ReportsBorder, RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        TableCell(row.metric.label, 0.46f)
+        TableCell(formatMetricValue(row.metric, row.total), 0.18f, textAlign = TextAlign.End)
+        TableCell(formatAverageValue(row.metric, row.average), 0.18f, textAlign = TextAlign.End)
+        TableCell(row.position?.let { "${it}°" } ?: "-", 0.18f, textAlign = TextAlign.End, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun MetricTimeBlockCard(
+    label: String,
+    total: Int,
+    highlighted: Boolean = false
+) {
+    val container = if (highlighted) ReportsGreenLight else ReportsSurface
+    val border = if (highlighted) ReportsGreen.copy(alpha = 0.45f) else ReportsBorder
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(container, RoundedCornerShape(18.dp))
+            .border(1.dp, border, RoundedCornerShape(18.dp))
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = title,
-            fontWeight = FontWeight.Bold,
-            fontSize = 13.sp,
-            color = accentColor,
-            modifier = Modifier.weight(1f)
+            text = label,
+            modifier = Modifier.weight(1f),
+            fontSize = 15.sp,
+            fontWeight = if (highlighted) FontWeight.Bold else FontWeight.Medium,
+            color = ReportsText
         )
 
         Box(
             modifier = Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color.White.copy(alpha = 0.75f))
-                .padding(horizontal = 10.dp, vertical = 3.dp)
+                .background(ReportsBlueDark, RoundedCornerShape(50))
+                .padding(horizontal = 12.dp, vertical = 5.dp)
         ) {
             Text(
-                text = count.toString(),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = accentColor
+                text = total.toString(),
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
             )
         }
     }
 }
 
 @Composable
-private fun BlockedPlayerRowItem(
-    player: Player,
-    reason: String,
-    accentColor: Color,
-    accentLight: Color
+private fun ReportCardShell(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(BlockedGray)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(34.dp),
+        colors = CardDefaults.cardColors(containerColor = ReportsBg),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Box(
+        Column(
             modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(Color.White),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .border(2.dp, ReportsGreen, RoundedCornerShape(34.dp))
+                .padding(horizontal = 18.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                text = player.number.toString(),
-                fontSize = 13.sp,
+                text = title,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = BlockedText
-            )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = player.name,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
-                color = BlockedText
+                color = ReportsText
             )
             Text(
-                text = "Bloqueado · $reason · N° ${player.number}",
-                fontSize = 12.sp,
-                color = accentColor
+                text = subtitle,
+                fontSize = 13.sp,
+                color = ReportsTextSecondary
             )
+            HorizontalDivider(color = ReportsBorder)
+            content()
         }
+    }
+}
 
-        Icon(
-            imageVector = if (reason == "Expulsado") Icons.Default.Warning else Icons.Default.Healing,
-            contentDescription = reason,
-            tint = accentColor,
-            modifier = Modifier.size(18.dp)
+@Composable
+private fun ReportsMenuButton(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val background = if (selected) ReportsMuted else ReportsSurface
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(70.dp)
+            .background(background, RoundedCornerShape(18.dp))
+            .border(2.dp, ReportsGreen, RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            fontSize = 17.sp,
+            color = ReportsText,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            textAlign = TextAlign.Center
         )
     }
 }
 
 @Composable
-private fun PlayerRowItem(
-    player: Player,
-    role: String,
-    teamColor: Color = Color(0xFF1E6B45),
-    teamColorLight: Color = Color(0xFFE8F2EC),
-    playedTime: String = "00:00",
-    showStats: Boolean = false,
-    showSwap: Boolean = false,
-    onStats: () -> Unit = {},
-    onSwap: () -> Unit = {}
+private fun ReportsActionButton(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
 ) {
-    Row(
+    val background = if (selected) ReportsGreenLight else ReportsSurface
+    val borderColor = if (selected) ReportsGreen else ReportsGreen.copy(alpha = 0.95f)
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .heightIn(min = 58.dp)
+            .background(background, RoundedCornerShape(16.dp))
+            .border(2.dp, borderColor, RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Box(
+        Text(
+            text = text,
+            fontSize = 15.sp,
+            color = ReportsText,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun ReportsDropdownButton(
+    label: String,
+    options: List<Pair<String, String>>,
+    onOptionSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        Row(
             modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(if (role == "Titular") teamColorLight else Color(0xFFF5F5F5)),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .background(ReportsSurface, RoundedCornerShape(14.dp))
+                .border(2.dp, ReportsGreen, RoundedCornerShape(14.dp))
+                .clickable { expanded = true }
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = player.number.toString(),
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (role == "Titular") teamColor else TextSecondary
-            )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = player.name,
-                fontWeight = FontWeight.SemiBold,
+                text = label,
+                modifier = Modifier.weight(1f),
+                color = ReportsText,
                 fontSize = 15.sp,
-                color = TextPrimary
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
-            Text(
-                text = "$role · N° ${player.number} · $playedTime",
-                fontSize = 12.sp,
-                color = TextSecondary
+            Icon(
+                imageVector = Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                tint = ReportsBlueDark
             )
         }
 
-        if (showStats) {
-            IconButton(onClick = onStats, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    Icons.Default.StackedLineChart,
-                    contentDescription = "Estadísticas",
-                    tint = teamColor,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
-
-        if (showSwap) {
-            IconButton(onClick = onSwap, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    Icons.Default.Downloading,
-                    contentDescription = "Cambio",
-                    tint = TextSecondary,
-                    modifier = Modifier.size(18.dp)
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(ReportsSurface)
+        ) {
+            options.forEach { (title, value) ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = title,
+                            color = ReportsText,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    onClick = {
+                        expanded = false
+                        onOptionSelected(value)
+                    }
                 )
             }
         }
     }
+}
+
+@Composable
+private fun ReportCenteredState(
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    loading: Boolean = false
+) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (loading) {
+                CircularProgressIndicator(color = ReportsBlue)
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(56.dp)
+                        .background(ReportsGreenLight, CircleShape)
+                        .border(1.dp, ReportsGreen.copy(alpha = 0.4f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("📊", fontSize = 24.sp)
+                }
+            }
+
+            Text(
+                text = title,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = ReportsText,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = subtitle,
+                fontSize = 14.sp,
+                color = ReportsTextSecondary,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReportInnerEmpty(message: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(220.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = message,
+            color = ReportsTextSecondary,
+            textAlign = TextAlign.Center,
+            fontSize = 14.sp
+        )
+    }
+}
+
+private data class TableColumn(
+    val title: String,
+    val weight: Float,
+    val textAlign: TextAlign = TextAlign.Start
+)
+
+@Composable
+private fun ReportsTableHeader(columns: List<TableColumn>) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        columns.forEach { column ->
+            TableCell(
+                text = column.title,
+                weight = column.weight,
+                textAlign = column.textAlign,
+                color = ReportsTextSecondary,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun RowScope.TableCell(
+    text: String,
+    weight: Float,
+    textAlign: TextAlign = TextAlign.Start,
+    color: Color = ReportsText,
+    fontWeight: FontWeight = FontWeight.Medium,
+    fontSize: androidx.compose.ui.unit.TextUnit = 14.sp
+) {
+    Text(
+        text = text,
+        modifier = Modifier.weight(weight),
+        color = color,
+        fontWeight = fontWeight,
+        fontSize = fontSize,
+        textAlign = textAlign,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis
+    )
+}
+
+private fun reportMatchLabel(match: MatchRecord): String {
+    val rival = match.rivalName.ifBlank { "Sin rival" }
+    val date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+        .format(Date(match.finishedAtMillis ?: match.createdAtMillis))
+    return "$rival · $date"
+}
+
+private fun formatMetricValue(metric: ReportMetricDefinition, value: Double): String {
+    return when (metric.kind) {
+        ReportMetricKind.MINUTES -> formatMinutes(value)
+        ReportMetricKind.STARTS, ReportMetricKind.EVENT_COUNT -> formatWholeOrOneDecimal(value)
+    }
+}
+
+private fun formatAverageValue(metric: ReportMetricDefinition, value: Double): String {
+    return when (metric.kind) {
+        ReportMetricKind.MINUTES -> formatMinutes(value)
+        ReportMetricKind.STARTS, ReportMetricKind.EVENT_COUNT -> formatOneDecimal(value)
+    }
+}
+
+private fun formatMinutes(value: Double): String {
+    return if (value % 1.0 == 0.0) {
+        value.roundToInt().toString()
+    } else {
+        String.format(Locale.getDefault(), "%.1f", value)
+    }
+}
+
+private fun formatWholeOrOneDecimal(value: Double): String {
+    return if (value % 1.0 == 0.0) {
+        value.roundToInt().toString()
+    } else {
+        String.format(Locale.getDefault(), "%.1f", value)
+    }
+}
+
+private fun formatOneDecimal(value: Double): String {
+    return String.format(Locale.getDefault(), "%.1f", value)
 }

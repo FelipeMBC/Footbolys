@@ -19,13 +19,29 @@ import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.modelos.PlayerStats
 import com.fmarquez.footboly.modelos.PlayerStatsDraft
 import com.fmarquez.footboly.modelos.Team
+import com.fmarquez.footboly.modelos.ReportMetricDefinition
+import com.fmarquez.footboly.modelos.ReportMetricKind
+import com.fmarquez.footboly.modelos.ReportPlayerStatRow
+import com.fmarquez.footboly.modelos.ReportPlayerSummary
+import com.fmarquez.footboly.modelos.ReportRankingRow
+import com.fmarquez.footboly.modelos.ReportTimeBlock
+import com.fmarquez.footboly.modelos.ReportTimeBreakdown
+import kotlin.math.abs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
+import org.json.JSONArray
+import org.json.JSONObject
 
 class FutbolViewModel(application: Application) : AndroidViewModel(application) {
+
+    private enum class MatchPauseState {
+        NONE,
+        MANUAL,
+        FIRST_HALF
+    }
 
     private val database = FootbolyDatabase.getDatabase(application)
     private val repository = FootballRepository(
@@ -65,11 +81,12 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
     private var matchTimerJob: Job? = null
 
-    var isHalftimePaused by mutableStateOf(false)
-        private set
+    private var matchPauseState by mutableStateOf(MatchPauseState.NONE)
+    private var firstHalfRegistered by mutableStateOf(false)
+    private var secondHalfStarted by mutableStateOf(false)
 
-    var shouldShowHalftimeDialog by mutableStateOf(false)
-        private set
+    val isMatchPaused: Boolean
+        get() = matchPauseState != MatchPauseState.NONE
 
     private val playerStatsDrafts = mutableStateMapOf<String, PlayerStatsDraft>()
     private val originalPlayerStatsDrafts = mutableStateMapOf<String, PlayerStatsDraft>()
@@ -111,7 +128,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
                     editingFinishedMatch = loadedMatch
                 }
 
-                syncHalftimeStateWithMatch(loadedMatch)
+                syncPauseStateWithMatch(loadedMatch)
             }
         }
 
@@ -159,6 +176,325 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun statsDraftKey(matchId: Int, playerId: Int): String {
         return "${matchId}_$playerId"
+    }
+
+    private fun playerToJson(player: Player): JSONObject {
+        return JSONObject().apply {
+            put("id", player.id)
+            put("name", player.name)
+            put("number", player.number)
+        }
+    }
+
+    private fun playersToJson(players: List<Player>): JSONArray {
+        return JSONArray().apply {
+            players.forEach { put(playerToJson(it)) }
+        }
+    }
+
+    private fun teamPlayersToJson(team: Team?): JSONArray {
+        return JSONArray().apply {
+            team?.players
+                ?.sortedBy { it.number }
+                ?.forEach { player -> put(playerToJson(player)) }
+        }
+    }
+
+    private fun matchEventToJson(event: MatchEvent): JSONObject {
+        return JSONObject().apply {
+            put("minute", event.minute)
+            if (event.playerId == null) put("playerId", JSONObject.NULL) else put("playerId", event.playerId)
+            put("type", event.type)
+            put("playerName", event.playerName)
+            put("detail", event.detail)
+            put("timestampLabel", event.timestampLabel)
+        }
+    }
+
+    private fun matchEventsToJson(events: List<MatchEvent>): JSONArray {
+        return JSONArray().apply {
+            events.forEach { put(matchEventToJson(it)) }
+        }
+    }
+
+    private fun playerTimesToJson(playerTimes: Map<Int, MatchPlayerTime>): JSONArray {
+        return JSONArray().apply {
+            playerTimes.values
+                .sortedBy { it.playerId }
+                .forEach { playerTime ->
+                    put(
+                        JSONObject().apply {
+                            put("playerId", playerTime.playerId)
+                            put("accumulatedSeconds", playerTime.accumulatedSeconds)
+                            put("isCurrentlyPlaying", playerTime.isCurrentlyPlaying)
+                            if (playerTime.lastEntrySecond == null) {
+                                put("lastEntrySecond", JSONObject.NULL)
+                            } else {
+                                put("lastEntrySecond", playerTime.lastEntrySecond)
+                            }
+                        }
+                    )
+                }
+        }
+    }
+
+    fun exportMatchToJson(match: MatchRecord, includeFullTeam: Boolean = false): String {
+        val teamSnapshot = teams.firstOrNull { it.id == match.teamId }
+            ?: selectedTeam?.takeIf { it.id == match.teamId }
+
+        val root = JSONObject().apply {
+            put("schemaVersion", 2)
+            put("exportedAtMillis", System.currentTimeMillis())
+            put("transferType", if (includeFullTeam) "TEAM_AND_MATCH" else "MATCH_ONLY")
+            put("includesFullTeam", includeFullTeam)
+            put(
+                "teamSnapshot",
+                JSONObject().apply {
+                    put("teamId", match.teamId)
+                    put("name", match.teamName)
+                    put("logoEmoji", teamSnapshot?.logoEmoji ?: "⚽")
+                    put("logoUri", teamSnapshot?.logoUri ?: JSONObject.NULL)
+                    put("shirtColorHex", match.shirtColorHex)
+                    if (includeFullTeam) {
+                        put("players", teamPlayersToJson(teamSnapshot))
+                    }
+                }
+            )
+            put(
+                "match",
+                JSONObject().apply {
+                    put("originalMatchId", match.id)
+                    put("teamId", match.teamId)
+                    put("teamName", match.teamName)
+                    put("shirtColorHex", match.shirtColorHex)
+                    put("rivalName", match.rivalName)
+                    put("matchDateLabel", match.matchDateLabel)
+                    put("opponentGoals", match.opponentGoals)
+                    put("opponentGoalChances", match.opponentGoalChances)
+                    put("isStarted", match.isStarted)
+                    put("isFinished", match.isFinished)
+                    put("totalSeconds", match.totalSeconds)
+                    put("remainingSeconds", match.remainingSeconds)
+                    put("createdAtMillis", match.createdAtMillis)
+                    put("finishedAtMillis", match.finishedAtMillis ?: JSONObject.NULL)
+                    put("finishedAtLabel", match.finishedAtLabel)
+                    put("starters", playersToJson(match.starters))
+                    put("substitutes", playersToJson(match.substitutes))
+                    put("expelledPlayers", playersToJson(match.expelledPlayers))
+                    put("injuredPlayers", playersToJson(match.injuredPlayers))
+                    put("events", matchEventsToJson(match.events))
+                    put("playerTimes", playerTimesToJson(match.playerTimes))
+                }
+            )
+        }
+
+        return root.toString(2)
+    }
+
+    private fun parseImportedPlayers(array: JSONArray?): MutableList<Player> {
+        val players = mutableListOf<Player>()
+        if (array == null) return players
+
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            val id = item.optInt("id", index + 1)
+            val name = item.optString("name").ifBlank { "Jugador ${index + 1}" }
+            val number = item.optInt("number", index + 1)
+            players.add(Player(id = id, name = name, number = number))
+        }
+
+        return players
+    }
+
+    private fun parseImportedEvents(array: JSONArray?): MutableList<MatchEvent> {
+        val events = mutableListOf<MatchEvent>()
+        if (array == null) return events
+
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            val playerId = if (item.isNull("playerId")) null else item.optInt("playerId")
+            events.add(
+                MatchEvent(
+                    minute = item.optInt("minute", 0),
+                    type = item.optString("type").ifBlank { "Evento" },
+                    playerId = playerId,
+                    playerName = item.optString("playerName"),
+                    detail = item.optString("detail"),
+                    timestampLabel = item.optString("timestampLabel")
+                )
+            )
+        }
+
+        return events
+    }
+
+    private fun parseImportedPlayerTimes(array: JSONArray?): MutableMap<Int, MatchPlayerTime> {
+        val playerTimes = mutableMapOf<Int, MatchPlayerTime>()
+        if (array == null) return playerTimes
+
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            val playerId = item.optInt("playerId", 0)
+            if (playerId <= 0) continue
+
+            playerTimes[playerId] = MatchPlayerTime(
+                playerId = playerId,
+                accumulatedSeconds = item.optInt("accumulatedSeconds", 0),
+                isCurrentlyPlaying = item.optBoolean("isCurrentlyPlaying", false),
+                lastEntrySecond = if (item.isNull("lastEntrySecond")) null else item.optInt("lastEntrySecond")
+            )
+        }
+
+        return playerTimes
+    }
+
+    private fun collectImportedPlayers(matchJson: JSONObject): List<Player> {
+        return buildList {
+            addAll(parseImportedPlayers(matchJson.optJSONArray("starters")))
+            addAll(parseImportedPlayers(matchJson.optJSONArray("substitutes")))
+            addAll(parseImportedPlayers(matchJson.optJSONArray("expelledPlayers")))
+            addAll(parseImportedPlayers(matchJson.optJSONArray("injuredPlayers")))
+        }.distinctBy { "${it.name}_${it.number}" }
+    }
+
+    private suspend fun ensureTeamForImportedMatch(
+        teamName: String,
+        logoEmoji: String,
+        logoUri: String?,
+        shirtColorHex: String,
+        players: List<Player>
+    ): Team {
+        val existing = teams.firstOrNull {
+            it.name.trim().equals(teamName.trim(), ignoreCase = true) &&
+                    it.shirtColorHex.equals(shirtColorHex, ignoreCase = true)
+        }
+
+        if (existing != null) {
+            return repository.syncImportedPlayersToTeam(existing.id, players)
+        }
+
+        return repository.createImportedTeam(
+            teamName = teamName,
+            teamEmoji = logoEmoji,
+            players = players,
+            logoUri = logoUri,
+            shirtColorHex = shirtColorHex
+        )
+    }
+
+    private fun parseImportedMatch(
+        matchJson: JSONObject,
+        localTeamId: Int,
+        fallbackTeamName: String,
+        fallbackShirtColorHex: String
+    ): MatchRecord {
+        return MatchRecord(
+            id = matchJson.optInt("originalMatchId", matchJson.optInt("id", 0)),
+            teamId = localTeamId,
+            teamName = matchJson.optString("teamName").ifBlank { fallbackTeamName },
+            shirtColorHex = matchJson.optString("shirtColorHex").ifBlank { fallbackShirtColorHex },
+            rivalName = matchJson.optString("rivalName"),
+            matchDateLabel = matchJson.optString("matchDateLabel"),
+            starters = parseImportedPlayers(matchJson.optJSONArray("starters")),
+            substitutes = parseImportedPlayers(matchJson.optJSONArray("substitutes")),
+            expelledPlayers = parseImportedPlayers(matchJson.optJSONArray("expelledPlayers")),
+            injuredPlayers = parseImportedPlayers(matchJson.optJSONArray("injuredPlayers")),
+            statsByPlayerId = mutableMapOf(),
+            events = parseImportedEvents(matchJson.optJSONArray("events")),
+            playerTimes = parseImportedPlayerTimes(matchJson.optJSONArray("playerTimes")),
+            opponentGoals = matchJson.optInt("opponentGoals", 0),
+            opponentGoalChances = matchJson.optInt("opponentGoalChances", 0),
+            isStarted = matchJson.optBoolean("isStarted", false),
+            isFinished = matchJson.optBoolean("isFinished", true),
+            totalSeconds = matchJson.optInt("totalSeconds", 60),
+            remainingSeconds = matchJson.optInt("remainingSeconds", 60),
+            createdAtMillis = matchJson.optLong("createdAtMillis", System.currentTimeMillis()),
+            finishedAtMillis = if (matchJson.isNull("finishedAtMillis")) null else matchJson.optLong("finishedAtMillis"),
+            finishedAtLabel = matchJson.optString("finishedAtLabel")
+        )
+    }
+
+    fun importMatchFromJson(
+        jsonText: String,
+        includeFullTeam: Boolean = false,
+        onSuccess: (MatchRecord) -> Unit = {},
+        onError: (String) -> Unit = {}
+    ) {
+        val rawJson = jsonText.trim()
+        if (rawJson.isBlank()) {
+            onError("Pega un JSON válido para importar.")
+            return
+        }
+
+        val activeMatch = currentMatch
+        if (activeMatch != null && activeMatch.isStarted && !activeMatch.isFinished) {
+            onError("Finaliza el partido en curso antes de importar otro JSON.")
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                val root = JSONObject(rawJson)
+                val matchJson = when {
+                    root.has("match") -> root.getJSONObject("match")
+                    root.has("teamName") -> root
+                    else -> throw IllegalArgumentException("No se encontró la información del partido en el JSON.")
+                }
+
+                val teamSnapshotJson = root.optJSONObject("teamSnapshot")
+                val importedTeamName = teamSnapshotJson?.optString("name")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: matchJson.optString("teamName").ifBlank { "Equipo Importado" }
+                val importedShirtColor = teamSnapshotJson?.optString("shirtColorHex")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: matchJson.optString("shirtColorHex").ifBlank { "#1E6B45" }
+                val importedLogoEmoji = teamSnapshotJson?.optString("logoEmoji")
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "⚽"
+                val importedLogoUri = teamSnapshotJson?.optString("logoUri")
+                    ?.takeIf { it.isNotBlank() && it != "null" }
+
+                val importedPlayersFromMatch = collectImportedPlayers(matchJson)
+                val importedPlayersFromTeam = parseImportedPlayers(teamSnapshotJson?.optJSONArray("players"))
+                val playersForTeamImport = importedPlayersFromTeam.ifEmpty { importedPlayersFromMatch }
+
+                val localTeam = if (includeFullTeam) {
+                    ensureTeamForImportedMatch(
+                        teamName = importedTeamName,
+                        logoEmoji = importedLogoEmoji,
+                        logoUri = importedLogoUri,
+                        shirtColorHex = importedShirtColor,
+                        players = playersForTeamImport
+                    )
+                } else {
+                    selectedTeam ?: throw IllegalArgumentException(
+                        "Selecciona primero un equipo si deseas importar solo el historial del partido."
+                    )
+                }
+
+                var importedMatch = parseImportedMatch(
+                    matchJson = matchJson,
+                    localTeamId = localTeam.id,
+                    fallbackTeamName = if (includeFullTeam) importedTeamName else localTeam.name,
+                    fallbackShirtColorHex = if (includeFullTeam) importedShirtColor else localTeam.shirtColorHex
+                )
+
+                if (!includeFullTeam) {
+                    importedMatch = importedMatch.copy(
+                        teamId = localTeam.id,
+                        teamName = localTeam.name,
+                        shirtColorHex = localTeam.shirtColorHex
+                    )
+                }
+
+                val savedMatch = repository.importMatch(importedMatch)
+                putFinishedMatchLocally(savedMatch)
+                selectedTeamId = localTeam.id
+                onSuccess(savedMatch)
+            } catch (e: Exception) {
+                onError(e.message ?: "No se pudo importar el JSON.")
+            }
+        }
     }
 
     private fun putFinishedMatchLocally(match: MatchRecord) {
@@ -311,8 +647,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     private fun opponentAssistEventType(match: MatchRecord?): String = "Participación Gol ${currentRivalLabel(match)}"
     private fun teamFoulEventType(match: MatchRecord?): String = "Falta para ${currentTeamLabel(match)}"
     private fun opponentFoulEventType(match: MatchRecord?): String = "Falta para ${currentRivalLabel(match)}"
-    private fun teamFreeKickEventType(match: MatchRecord?): String = "Tiro Libre para ${currentTeamLabel(match)}"
-    private fun opponentFreeKickEventType(match: MatchRecord?): String = "Tiro Libre para ${currentRivalLabel(match)}"
+    private fun teamOffsideEventType(match: MatchRecord?): String = "Off Side para ${currentTeamLabel(match)}"
+    private fun opponentOffsideEventType(match: MatchRecord?): String = "Off Side para ${currentRivalLabel(match)}"
     private fun teamPenaltyEventType(match: MatchRecord?): String = "Penal para ${currentTeamLabel(match)}"
     private fun opponentPenaltyEventType(match: MatchRecord?): String = "Penal para ${currentRivalLabel(match)}"
     private fun opponentGoalChanceEventType(match: MatchRecord?): String = "Oportunidad de Gol ${currentRivalLabel(match)}"
@@ -341,12 +677,12 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         return type == "Falta en Contra" || type == opponentFoulEventType(match)
     }
 
-    private fun isTeamFreeKickType(type: String, match: MatchRecord?): Boolean {
-        return type == "Tiro Libre a Favor" || type == teamFreeKickEventType(match)
+    private fun isTeamOffsideType(type: String, match: MatchRecord?): Boolean {
+        return type == "Tiro Libre a Favor" || type == "Off Side a Favor" || type == teamOffsideEventType(match)
     }
 
-    private fun isOpponentFreeKickType(type: String, match: MatchRecord?): Boolean {
-        return type == "Tiro Libre en Contra" || type == opponentFreeKickEventType(match)
+    private fun isOpponentOffsideType(type: String, match: MatchRecord?): Boolean {
+        return type == "Tiro Libre en Contra" || type == "Off Side en Contra" || type == opponentOffsideEventType(match)
     }
 
     private fun isTeamPenaltyType(type: String, match: MatchRecord?): Boolean {
@@ -396,8 +732,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
                 isOpponentFoulType(type, match) -> draft.copy(faltaContra = draft.faltaContra + count)
                 type == "Corner +" -> draft.copy(cornerPositivo = draft.cornerPositivo + count)
                 type == "Corner -" -> draft.copy(cornerNegativo = draft.cornerNegativo + count)
-                isTeamFreeKickType(type, match) -> draft.copy(tiroLibreFavor = draft.tiroLibreFavor + count)
-                isOpponentFreeKickType(type, match) -> draft.copy(tiroLibreContra = draft.tiroLibreContra + count)
+                isTeamOffsideType(type, match) -> draft.copy(tiroLibreFavor = draft.tiroLibreFavor + count)
+                isOpponentOffsideType(type, match) -> draft.copy(tiroLibreContra = draft.tiroLibreContra + count)
                 isTeamPenaltyType(type, match) -> draft.copy(penalFavor = draft.penalFavor + count)
                 isOpponentPenaltyType(type, match) -> draft.copy(penalContra = draft.penalContra + count)
 
@@ -500,8 +836,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         addIfNeeded(opponentFoulEventType(match), draft.faltaContra, "Falta en Contra")
         addIfNeeded("Corner +", draft.cornerPositivo)
         addIfNeeded("Corner -", draft.cornerNegativo)
-        addIfNeeded(teamFreeKickEventType(match), draft.tiroLibreFavor, "Tiro Libre a Favor")
-        addIfNeeded(opponentFreeKickEventType(match), draft.tiroLibreContra, "Tiro Libre en Contra")
+        addIfNeeded(teamOffsideEventType(match), draft.tiroLibreFavor, "Tiro Libre a Favor", "Off Side a Favor")
+        addIfNeeded(opponentOffsideEventType(match), draft.tiroLibreContra, "Tiro Libre en Contra", "Off Side en Contra")
         addIfNeeded(teamPenaltyEventType(match), draft.penalFavor, "Penal a Favor")
         addIfNeeded(opponentPenaltyEventType(match), draft.penalContra, "Penal en Contra")
 
@@ -553,8 +889,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         compare(opponentFoulEventType(match), original.faltaContra, updated.faltaContra)
         compare("Corner +", original.cornerPositivo, updated.cornerPositivo)
         compare("Corner -", original.cornerNegativo, updated.cornerNegativo)
-        compare(teamFreeKickEventType(match), original.tiroLibreFavor, updated.tiroLibreFavor)
-        compare(opponentFreeKickEventType(match), original.tiroLibreContra, updated.tiroLibreContra)
+        compare(teamOffsideEventType(match), original.tiroLibreFavor, updated.tiroLibreFavor)
+        compare(opponentOffsideEventType(match), original.tiroLibreContra, updated.tiroLibreContra)
         compare(teamPenaltyEventType(match), original.penalFavor, updated.penalFavor)
         compare(opponentPenaltyEventType(match), original.penalContra, updated.penalContra)
 
@@ -685,8 +1021,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         addChange(opponentFoulEventType(match), draft.faltaContra)
         addChange("Corner +", draft.cornerPositivo)
         addChange("Corner -", draft.cornerNegativo)
-        addChange(teamFreeKickEventType(match), draft.tiroLibreFavor)
-        addChange(opponentFreeKickEventType(match), draft.tiroLibreContra)
+        addChange(teamOffsideEventType(match), draft.tiroLibreFavor)
+        addChange(opponentOffsideEventType(match), draft.tiroLibreContra)
         addChange(teamPenaltyEventType(match), draft.penalFavor)
         addChange(opponentPenaltyEventType(match), draft.penalContra)
 
@@ -710,35 +1046,77 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     }
 
 
-    private fun getHalftimePoint(match: MatchRecord): Int {
-        return (match.totalSeconds / 2).coerceAtLeast(1)
+    private fun resetPauseUiState() {
+        matchPauseState = MatchPauseState.NONE
     }
 
-    private fun resetHalftimeUiState() {
-        isHalftimePaused = false
-        shouldShowHalftimeDialog = false
+    private fun resetMatchControlState() {
+        matchPauseState = MatchPauseState.NONE
+        firstHalfRegistered = false
+        secondHalfStarted = false
     }
 
-    private fun syncHalftimeStateWithMatch(match: MatchRecord?) {
+    private fun syncPauseStateWithMatch(match: MatchRecord?) {
         if (match == null || !match.isStarted || match.isFinished) {
-            resetHalftimeUiState()
-            return
+            resetMatchControlState()
         }
-
-        val halftimePoint = getHalftimePoint(match)
-        isHalftimePaused = match.remainingSeconds == halftimePoint && match.remainingSeconds != match.totalSeconds
     }
 
-    fun dismissHalftimeDialog() {
-        shouldShowHalftimeDialog = false
-    }
-
-    fun resumeMatchAfterHalftime() {
+    fun pauseMatch() {
         val match = currentMatch ?: return
-        if (!match.isStarted || match.isFinished || !isHalftimePaused) return
+        if (!match.isStarted || match.isFinished) return
+        matchPauseState = MatchPauseState.MANUAL
+    }
 
-        isHalftimePaused = false
-        shouldShowHalftimeDialog = false
+    fun pauseAtFirstHalf() {
+        val match = currentMatch ?: return
+        if (!match.isStarted || match.isFinished) return
+        if (firstHalfRegistered) return
+        firstHalfRegistered = true
+        matchPauseState = MatchPauseState.FIRST_HALF
+    }
+
+    fun resumeMatch() {
+        val match = currentMatch ?: return
+        if (!match.isStarted || match.isFinished) return
+        if (matchPauseState == MatchPauseState.FIRST_HALF && firstHalfRegistered) {
+            secondHalfStarted = true
+        }
+        matchPauseState = MatchPauseState.NONE
+    }
+
+    fun toggleMatchPause() {
+        val match = currentMatch ?: return
+        if (!match.isStarted || match.isFinished) return
+        matchPauseState = if (isMatchPaused) MatchPauseState.NONE else MatchPauseState.MANUAL
+    }
+
+    fun isFirstHalfPaused(): Boolean {
+        return matchPauseState == MatchPauseState.FIRST_HALF
+    }
+
+    fun hasFirstHalfActionAvailable(): Boolean {
+        return !firstHalfRegistered
+    }
+
+    fun getCurrentPeriodLabel(): String {
+        return if (secondHalfStarted) "SEGUNDO TIEMPO" else "PRIMER TIEMPO"
+    }
+
+    fun getPauseBannerTitle(): String {
+        return when (matchPauseState) {
+            MatchPauseState.FIRST_HALF -> "Primer tiempo finalizado"
+            MatchPauseState.MANUAL -> "Partido pausado"
+            MatchPauseState.NONE -> "Partido en curso"
+        }
+    }
+
+    fun getPauseBannerSubtitle(): String {
+        return when (matchPauseState) {
+            MatchPauseState.FIRST_HALF -> "Pulsa PLAY y selecciona Reanudar para iniciar el segundo tiempo"
+            MatchPauseState.MANUAL -> "Pulsa PLAY y selecciona Reanudar para continuar"
+            MatchPauseState.NONE -> ""
+        }
     }
 
     fun setMatchDuration(minutes: Int) {
@@ -754,7 +1132,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
             remainingSeconds = safeTotalSeconds
         )
         currentMatch = updatedMatch
-        resetHalftimeUiState()
+        resetMatchControlState()
         viewModelScope.launch { repository.updateMatch(updatedMatch) }
     }
 
@@ -946,7 +1324,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         selectedFinishedMatch = null
         selectedPlayerId = null
         matchTimerJob?.cancel()
-        resetHalftimeUiState()
+        resetMatchControlState()
         viewModelScope.launch {
             val newMatch = repository.createNewMatch(team)
             currentMatch = newMatch
@@ -1077,7 +1455,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     fun stopMatch() {
         val match = currentMatch ?: return
         matchTimerJob?.cancel()
-        resetHalftimeUiState()
+        resetPauseUiState()
 
         val finishedMatch = buildFinishedMatch(match)
 
@@ -1198,7 +1576,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         val match = currentMatch ?: return
         if (match.isStarted || match.isFinished) return
         clearEditingFinishedMatch()
-        resetHalftimeUiState()
+        resetMatchControlState()
 
         val initializedTimes = initializePlayerTimesForMatch(match)
 
@@ -1221,28 +1599,14 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
                 val updated = currentMatch ?: break
                 if (!updated.isStarted || updated.isFinished) break
 
-                if (isHalftimePaused) {
+                if (isMatchPaused) {
                     continue
                 }
 
-                val halftimePoint = getHalftimePoint(updated)
                 val newRemaining = (updated.remainingSeconds - 1).coerceAtLeast(0)
-                val isCrossingHalftime =
-                    updated.totalSeconds > 1 &&
-                            updated.remainingSeconds > halftimePoint &&
-                            newRemaining <= halftimePoint
-
-                if (isCrossingHalftime) {
-                    val halftimeMatch = updated.copy(remainingSeconds = halftimePoint)
-                    currentMatch = halftimeMatch
-                    isHalftimePaused = true
-                    shouldShowHalftimeDialog = true
-                    repository.updateMatch(halftimeMatch)
-                    continue
-                }
 
                 if (newRemaining == 0) {
-                    resetHalftimeUiState()
+                    resetPauseUiState()
                     val finishedMatch = buildFinishedMatch(updated.copy(remainingSeconds = 0))
 
                     currentMatch = finishedMatch
@@ -1405,4 +1769,365 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         currentMatch = match.copy(events = match.events.toMutableList().apply { add(event) })
         viewModelScope.launch { repository.addEvent(match.id, event) }
     }
+
+    private object ReportMetricKey {
+        const val GOALS = "GOALS"
+        const val GOALS_AGAINST = "GOALS_AGAINST"
+        const val GOAL_PARTICIPATION = "GOAL_PARTICIPATION"
+        const val GOAL_PARTICIPATION_AGAINST = "GOAL_PARTICIPATION_AGAINST"
+        const val SHOTS_ON_TARGET_POSITIVE = "SHOTS_ON_TARGET_POSITIVE"
+        const val SHOTS_ON_TARGET_NEGATIVE = "SHOTS_ON_TARGET_NEGATIVE"
+        const val HALF_SHOTS_POSITIVE = "HALF_SHOTS_POSITIVE"
+        const val HALF_SHOTS_NEGATIVE = "HALF_SHOTS_NEGATIVE"
+        const val BALL_RECOVERED = "BALL_RECOVERED"
+        const val BALL_LOST = "BALL_LOST"
+        const val PASSES_GOOD = "PASSES_GOOD"
+        const val PASSES_BAD = "PASSES_BAD"
+        const val CROSSES_POSITIVE = "CROSSES_POSITIVE"
+        const val CROSSES_NEGATIVE = "CROSSES_NEGATIVE"
+        const val CLEARANCES_POSITIVE = "CLEARANCES_POSITIVE"
+        const val CLEARANCES_NEGATIVE = "CLEARANCES_NEGATIVE"
+        const val FOULS_FAVOR = "FOULS_FAVOR"
+        const val FOULS_AGAINST = "FOULS_AGAINST"
+        const val CORNERS_POSITIVE = "CORNERS_POSITIVE"
+        const val CORNERS_NEGATIVE = "CORNERS_NEGATIVE"
+        const val OFFSIDE_FAVOR = "OFFSIDE_FAVOR"
+        const val OFFSIDE_AGAINST = "OFFSIDE_AGAINST"
+        const val PENALTY_FAVOR = "PENALTY_FAVOR"
+        const val PENALTY_AGAINST = "PENALTY_AGAINST"
+        const val YELLOW_CARDS = "YELLOW_CARDS"
+        const val RED_CARDS = "RED_CARDS"
+        const val MINUTES_PLAYED = "MINUTES_PLAYED"
+        const val STARTS = "STARTS"
+        const val OPPONENT_GOAL_CHANCES = "OPPONENT_GOAL_CHANCES"
+    }
+
+    private data class PlayerHistoricalAccumulator(
+        val player: Player,
+        var matchesPlayed: Int = 0,
+        var starts: Int = 0,
+        var totalSecondsPlayed: Int = 0,
+        val metricTotals: MutableMap<String, Int> = mutableMapOf()
+    )
+
+    private fun reportMetricDefinitions(): List<ReportMetricDefinition> {
+        return listOf(
+            ReportMetricDefinition(ReportMetricKey.GOALS, "Goles"),
+            ReportMetricDefinition(ReportMetricKey.GOALS_AGAINST, "Goles en Contra"),
+            ReportMetricDefinition(ReportMetricKey.GOAL_PARTICIPATION, "Participación Gol"),
+            ReportMetricDefinition(ReportMetricKey.GOAL_PARTICIPATION_AGAINST, "Participación Gol Rival"),
+            ReportMetricDefinition(ReportMetricKey.SHOTS_ON_TARGET_POSITIVE, "Tiro al Arco +"),
+            ReportMetricDefinition(ReportMetricKey.SHOTS_ON_TARGET_NEGATIVE, "Tiro al Arco -"),
+            ReportMetricDefinition(ReportMetricKey.HALF_SHOTS_POSITIVE, "Remate 1/2 +"),
+            ReportMetricDefinition(ReportMetricKey.HALF_SHOTS_NEGATIVE, "Remate 1/2 -"),
+            ReportMetricDefinition(ReportMetricKey.BALL_RECOVERED, "Balón Recuperado"),
+            ReportMetricDefinition(ReportMetricKey.BALL_LOST, "Balón Perdido"),
+            ReportMetricDefinition(ReportMetricKey.PASSES_GOOD, "Pases Buenos"),
+            ReportMetricDefinition(ReportMetricKey.PASSES_BAD, "Pases Malos"),
+            ReportMetricDefinition(ReportMetricKey.CROSSES_POSITIVE, "Centros +"),
+            ReportMetricDefinition(ReportMetricKey.CROSSES_NEGATIVE, "Centros -"),
+            ReportMetricDefinition(ReportMetricKey.CLEARANCES_POSITIVE, "Rechazos +"),
+            ReportMetricDefinition(ReportMetricKey.CLEARANCES_NEGATIVE, "Rechazos -"),
+            ReportMetricDefinition(ReportMetricKey.FOULS_FAVOR, "Falta a Favor"),
+            ReportMetricDefinition(ReportMetricKey.FOULS_AGAINST, "Falta en Contra"),
+            ReportMetricDefinition(ReportMetricKey.CORNERS_POSITIVE, "Corner +"),
+            ReportMetricDefinition(ReportMetricKey.CORNERS_NEGATIVE, "Corner -"),
+            ReportMetricDefinition(ReportMetricKey.OFFSIDE_FAVOR, "Off Side a Favor"),
+            ReportMetricDefinition(ReportMetricKey.OFFSIDE_AGAINST, "Off Side en Contra"),
+            ReportMetricDefinition(ReportMetricKey.PENALTY_FAVOR, "Penal a Favor"),
+            ReportMetricDefinition(ReportMetricKey.PENALTY_AGAINST, "Penal en Contra"),
+            ReportMetricDefinition(ReportMetricKey.YELLOW_CARDS, "Amarillas"),
+            ReportMetricDefinition(ReportMetricKey.RED_CARDS, "Rojas"),
+            ReportMetricDefinition(
+                key = ReportMetricKey.MINUTES_PLAYED,
+                label = "Minutos Jugados",
+                kind = ReportMetricKind.MINUTES,
+                supportsTimeline = false
+            ),
+            ReportMetricDefinition(
+                key = ReportMetricKey.STARTS,
+                label = "Titularidades",
+                kind = ReportMetricKind.STARTS,
+                supportsTimeline = false
+            ),
+            ReportMetricDefinition(
+                key = ReportMetricKey.OPPONENT_GOAL_CHANCES,
+                label = "Oportunidad de Gol Rival",
+                supportsPlayerBreakdown = false
+            )
+        )
+    }
+
+    private fun parseEventCountFromDetail(detail: String): Int {
+        return detail.substringAfter(": ", "")
+            .toIntOrNull()
+            ?.coerceAtLeast(1)
+            ?: 1
+    }
+
+    private fun metricDefinitionByKey(key: String): ReportMetricDefinition? {
+        return reportMetricDefinitions().firstOrNull { it.key == key }
+    }
+
+    private fun metricKeyFromEvent(type: String, match: MatchRecord): String? {
+        return when {
+            isTeamGoalType(type, match) -> ReportMetricKey.GOALS
+            isOpponentGoalType(type, match) -> ReportMetricKey.GOALS_AGAINST
+            isTeamAssistType(type, match) -> ReportMetricKey.GOAL_PARTICIPATION
+            isOpponentAssistType(type, match) -> ReportMetricKey.GOAL_PARTICIPATION_AGAINST
+            type == "Tiro al Arco +" -> ReportMetricKey.SHOTS_ON_TARGET_POSITIVE
+            type == "Tiro al Arco -" -> ReportMetricKey.SHOTS_ON_TARGET_NEGATIVE
+            type == "Remate 1/2 +" -> ReportMetricKey.HALF_SHOTS_POSITIVE
+            type == "Remate 1/2 -" -> ReportMetricKey.HALF_SHOTS_NEGATIVE
+            type == "Balón Recogido a Favor" || type == "Balón Recup." -> ReportMetricKey.BALL_RECOVERED
+            type == "Balón Recogido en Contra" || type == "Balón Perdido" -> ReportMetricKey.BALL_LOST
+            type == "Pases Buenos" -> ReportMetricKey.PASSES_GOOD
+            type == "Pases Malos" -> ReportMetricKey.PASSES_BAD
+            type == "Centros +" -> ReportMetricKey.CROSSES_POSITIVE
+            type == "Centros -" -> ReportMetricKey.CROSSES_NEGATIVE
+            type == "Rechazos +" -> ReportMetricKey.CLEARANCES_POSITIVE
+            type == "Rechazos -" -> ReportMetricKey.CLEARANCES_NEGATIVE
+            isTeamFoulType(type, match) -> ReportMetricKey.FOULS_FAVOR
+            isOpponentFoulType(type, match) -> ReportMetricKey.FOULS_AGAINST
+            type == "Corner +" -> ReportMetricKey.CORNERS_POSITIVE
+            type == "Corner -" -> ReportMetricKey.CORNERS_NEGATIVE
+            isTeamOffsideType(type, match) -> ReportMetricKey.OFFSIDE_FAVOR
+            isOpponentOffsideType(type, match) -> ReportMetricKey.OFFSIDE_AGAINST
+            isTeamPenaltyType(type, match) -> ReportMetricKey.PENALTY_FAVOR
+            isOpponentPenaltyType(type, match) -> ReportMetricKey.PENALTY_AGAINST
+            type == "Amarilla" -> ReportMetricKey.YELLOW_CARDS
+            type == "Roja" -> ReportMetricKey.RED_CARDS
+            isOpponentGoalChanceType(type, match) -> ReportMetricKey.OPPONENT_GOAL_CHANCES
+            else -> null
+        }
+    }
+
+    private fun reportMatchesForSelectedTeam(): List<MatchRecord> {
+        val teamId = selectedTeam?.id ?: return emptyList()
+        return finishedMatches
+            .filter { it.teamId == teamId && it.isFinished }
+            .sortedByDescending { it.finishedAtMillis ?: it.createdAtMillis }
+    }
+
+    private fun reportPlayersForMatches(matches: List<MatchRecord>): List<Player> {
+        val currentPlayers = selectedTeam?.players.orEmpty()
+        return (currentPlayers + matches.flatMap { allPlayersOf(it) })
+            .distinctBy { it.id }
+            .sortedWith(compareBy<Player> { it.number }.thenBy { it.name })
+    }
+
+    private fun buildHistoricalAccumulators(matches: List<MatchRecord>): Map<Int, PlayerHistoricalAccumulator> {
+        val players = reportPlayersForMatches(matches)
+        val accumulators = players.associate { player ->
+            player.id to PlayerHistoricalAccumulator(player = player)
+        }.toMutableMap()
+
+        matches.forEach { match ->
+            val matchPlayers = allPlayersOf(match).distinctBy { it.id }
+            matchPlayers.forEach { player ->
+                val accumulator = accumulators.getOrPut(player.id) {
+                    PlayerHistoricalAccumulator(player = player)
+                }
+                accumulator.matchesPlayed += 1
+                if (match.starters.any { it.id == player.id }) {
+                    accumulator.starts += 1
+                }
+                accumulator.totalSecondsPlayed += match.playerTimes[player.id]?.accumulatedSeconds ?: 0
+            }
+
+            match.events.forEach { event ->
+                val metricKey = metricKeyFromEvent(event.type, match) ?: return@forEach
+                val playerId = event.playerId ?: return@forEach
+                val accumulator = accumulators[playerId] ?: return@forEach
+                val count = parseEventCountFromDetail(event.detail)
+                accumulator.metricTotals[metricKey] = (accumulator.metricTotals[metricKey] ?: 0) + count
+            }
+        }
+
+        return accumulators
+    }
+
+    private fun valueForMetric(
+        metric: ReportMetricDefinition,
+        accumulator: PlayerHistoricalAccumulator
+    ): Double {
+        return when (metric.kind) {
+            ReportMetricKind.EVENT_COUNT -> (accumulator.metricTotals[metric.key] ?: 0).toDouble()
+            ReportMetricKind.MINUTES -> accumulator.totalSecondsPlayed / 60.0
+            ReportMetricKind.STARTS -> accumulator.starts.toDouble()
+        }
+    }
+
+    private fun buildRankingRows(
+        metricKey: String,
+        includeZeroValues: Boolean
+    ): List<ReportRankingRow> {
+        val metric = metricDefinitionByKey(metricKey) ?: return emptyList()
+        val accumulators = buildHistoricalAccumulators(reportMatchesForSelectedTeam())
+
+        val baseRows = accumulators.values
+            .map { accumulator ->
+                val total = valueForMetric(metric, accumulator)
+                val average = if (accumulator.matchesPlayed > 0) {
+                    total / accumulator.matchesPlayed
+                } else {
+                    0.0
+                }
+                Triple(accumulator, total, average)
+            }
+            .filter { (_, total, _) -> includeZeroValues || total > 0.0 }
+            .sortedWith(
+                compareByDescending<Triple<PlayerHistoricalAccumulator, Double, Double>> { it.second }
+                    .thenByDescending { it.third }
+                    .thenBy { it.first.player.name.lowercase() }
+                    .thenBy { it.first.player.number }
+            )
+
+        val rows = mutableListOf<ReportRankingRow>()
+        var densePosition = 0
+        var lastTotal: Double? = null
+        var lastAverage: Double? = null
+
+        baseRows.forEachIndexed { index, (accumulator, total, average) ->
+            val sameAsPrevious = lastTotal != null && lastAverage != null &&
+                    abs(total - lastTotal!!) < 0.0001 &&
+                    abs(average - lastAverage!!) < 0.0001
+
+            if (!sameAsPrevious) {
+                densePosition = if (index == 0) 1 else densePosition + 1
+                lastTotal = total
+                lastAverage = average
+            }
+
+            rows.add(
+                ReportRankingRow(
+                    position = densePosition,
+                    playerId = accumulator.player.id,
+                    playerName = accumulator.player.name,
+                    shirtNumber = accumulator.player.number,
+                    total = total,
+                    average = average,
+                    matchesPlayed = accumulator.matchesPlayed
+                )
+            )
+        }
+
+        return rows
+    }
+
+    fun getReportRankingMetrics(): List<ReportMetricDefinition> {
+        return reportMetricDefinitions().filter { it.supportsPlayerBreakdown }
+    }
+
+    fun getReportTimelineMetrics(): List<ReportMetricDefinition> {
+        return reportMetricDefinitions().filter { it.supportsTimeline }
+    }
+
+    fun getReportPlayers(): List<Player> {
+        return reportPlayersForMatches(reportMatchesForSelectedTeam())
+    }
+
+    fun getReportMatchesForSelectedTeam(): List<MatchRecord> {
+        return reportMatchesForSelectedTeam()
+    }
+
+    fun buildReportRanking(metricKey: String): List<ReportRankingRow> {
+        return buildRankingRows(metricKey = metricKey, includeZeroValues = false)
+    }
+
+    fun buildReportTimeBreakdown(metricKey: String, matchId: Int?): ReportTimeBreakdown? {
+        val metric = metricDefinitionByKey(metricKey)?.takeIf { it.supportsTimeline } ?: return null
+        val matches = reportMatchesForSelectedTeam().let { finished ->
+            if (matchId == null) finished else finished.filter { it.id == matchId }
+        }
+        if (matches.isEmpty()) return null
+
+        var firstQuarter = 0
+        var secondQuarter = 0
+        var thirdQuarter = 0
+        var lastQuarter = 0
+
+        matches.forEach { match ->
+            match.events.forEach { event ->
+                if (metricKeyFromEvent(event.type, match) != metricKey) return@forEach
+                val count = parseEventCountFromDetail(event.detail)
+                when (event.minute) {
+                    in 0..20 -> firstQuarter += count
+                    in 21..40 -> secondQuarter += count
+                    in 41..60 -> thirdQuarter += count
+                    else -> lastQuarter += count
+                }
+            }
+        }
+
+        val blocks = listOf(
+            ReportTimeBlock("Primer Cuarto (0-20)", firstQuarter),
+            ReportTimeBlock("Segundo Cuarto (21-40)", secondQuarter),
+            ReportTimeBlock("Tercer Cuarto (41-60)", thirdQuarter),
+            ReportTimeBlock("Último Cuarto (61+)", lastQuarter)
+        )
+
+        val matchLabel = if (matchId == null) {
+            "Todos los partidos"
+        } else {
+            matches.firstOrNull()?.let { selected ->
+                val rival = selected.rivalName.ifBlank { "Sin rival" }
+                "${selected.teamName} vs $rival"
+            } ?: "Partido"
+        }
+
+        return ReportTimeBreakdown(
+            metric = metric,
+            matchLabel = matchLabel,
+            total = blocks.sumOf { it.total },
+            blocks = blocks
+        )
+    }
+
+    fun buildPlayerReport(playerId: Int): ReportPlayerSummary? {
+        val matches = reportMatchesForSelectedTeam()
+        if (matches.isEmpty()) return null
+
+        val player = getReportPlayers().firstOrNull { it.id == playerId } ?: return null
+        val accumulators = buildHistoricalAccumulators(matches)
+        val accumulator = accumulators[playerId] ?: PlayerHistoricalAccumulator(player = player)
+
+        val metricDefinitions = getReportRankingMetrics()
+        val rankingMaps = metricDefinitions.associate { definition ->
+            definition.key to buildRankingRows(definition.key, includeZeroValues = true)
+                .associateBy { it.playerId }
+        }
+
+        val statRows = metricDefinitions.map { metric ->
+            val total = valueForMetric(metric, accumulator)
+            val average = if (accumulator.matchesPlayed > 0) {
+                total / accumulator.matchesPlayed
+            } else {
+                0.0
+            }
+            ReportPlayerStatRow(
+                metric = metric,
+                total = total,
+                average = average,
+                position = rankingMaps[metric.key]?.get(playerId)?.position
+            )
+        }
+
+        return ReportPlayerSummary(
+            playerId = player.id,
+            playerName = player.name,
+            shirtNumber = player.number,
+            matchesPlayed = accumulator.matchesPlayed,
+            teamMatches = matches.size,
+            totalMinutes = accumulator.totalSecondsPlayed / 60.0,
+            averageMinutes = if (accumulator.matchesPlayed > 0) {
+                (accumulator.totalSecondsPlayed / 60.0) / accumulator.matchesPlayed
+            } else {
+                0.0
+            },
+            starts = accumulator.starts,
+            stats = statRows
+        )
+    }
+
 }
