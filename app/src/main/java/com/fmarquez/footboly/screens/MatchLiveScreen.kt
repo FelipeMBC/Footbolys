@@ -87,9 +87,14 @@ private fun parseEventCount(detail: String): Int {
     return detail.substringAfter(": ", "").toIntOrNull() ?: 1
 }
 
-private fun ownGoals(events: List<MatchEvent>): Int {
+private fun ownGoals(
+    events: List<MatchEvent>,
+    teamName: String
+): Int {
     return events
-        .filter { it.type == "Gol a Favor" }
+        .filter { event ->
+            event.type == "Gol a Favor" || event.type == "Gol $teamName"
+        }
         .sumOf { parseEventCount(it.detail) }
 }
 
@@ -146,7 +151,7 @@ fun MatchLiveScreen(
         }
     }
 
-    val currentOwnGoals = ownGoals(match.events)
+    val currentOwnGoals = ownGoals(match.events, team.name)
     val rivalName = match.rivalName.ifBlank { "Equipo Rival" }
 
     BackHandler(enabled = !match.isFinished) {
@@ -476,7 +481,7 @@ fun MatchLiveScreen(
             shape = RoundedCornerShape(20.dp),
             title = {
                 Text(
-                    "Registrar rival",
+                    "Registrar ${rivalName}",
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary
                 )
@@ -551,7 +556,7 @@ fun MatchLiveScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("¿Estás seguro de finalizar el partido?", color = TextSecondary)
                     Text(
-                        "Rival: $opponentGoals goles · $opponentGoalChances oportunidades",
+                        "$rivalName: $opponentGoals goles · $opponentGoalChances oportunidades",
                         color = TextSecondary,
                         fontSize = 12.sp
                     )
@@ -637,15 +642,6 @@ private fun MatchScoreHeader(
                 .padding(horizontal = 18.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "$teamName VS $rivalName",
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                color = TextPrimary
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically

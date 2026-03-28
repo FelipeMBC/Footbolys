@@ -265,6 +265,70 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         return detailCount ?: 1
     }
 
+    private fun currentTeamLabel(match: MatchRecord?): String {
+        return match?.teamName?.ifBlank { "Mi Equipo" } ?: "Mi Equipo"
+    }
+
+    private fun currentRivalLabel(match: MatchRecord?): String {
+        return match?.rivalName?.ifBlank { "Equipo Rival" } ?: "Equipo Rival"
+    }
+
+    private fun teamGoalEventType(match: MatchRecord?): String = "Gol ${currentTeamLabel(match)}"
+    private fun opponentGoalEventType(match: MatchRecord?): String = "Gol ${currentRivalLabel(match)}"
+    private fun teamAssistEventType(match: MatchRecord?): String = "Participación Gol ${currentTeamLabel(match)}"
+    private fun opponentAssistEventType(match: MatchRecord?): String = "Participación Gol ${currentRivalLabel(match)}"
+    private fun teamFoulEventType(match: MatchRecord?): String = "Falta para ${currentTeamLabel(match)}"
+    private fun opponentFoulEventType(match: MatchRecord?): String = "Falta para ${currentRivalLabel(match)}"
+    private fun teamFreeKickEventType(match: MatchRecord?): String = "Tiro Libre para ${currentTeamLabel(match)}"
+    private fun opponentFreeKickEventType(match: MatchRecord?): String = "Tiro Libre para ${currentRivalLabel(match)}"
+    private fun teamPenaltyEventType(match: MatchRecord?): String = "Penal para ${currentTeamLabel(match)}"
+    private fun opponentPenaltyEventType(match: MatchRecord?): String = "Penal para ${currentRivalLabel(match)}"
+    private fun opponentGoalChanceEventType(match: MatchRecord?): String = "Oportunidad de Gol ${currentRivalLabel(match)}"
+
+    private fun isTeamGoalType(type: String, match: MatchRecord?): Boolean {
+        return type == "Gol a Favor" || type == teamGoalEventType(match)
+    }
+
+    private fun isOpponentGoalType(type: String, match: MatchRecord?): Boolean {
+        return type == "Gol en Contra" || type == "Gol Rival" || type == opponentGoalEventType(match)
+    }
+
+    private fun isTeamAssistType(type: String, match: MatchRecord?): Boolean {
+        return type == "Asistencia a favor" || type == teamAssistEventType(match)
+    }
+
+    private fun isOpponentAssistType(type: String, match: MatchRecord?): Boolean {
+        return type == "Asistencia en contra" || type == opponentAssistEventType(match)
+    }
+
+    private fun isTeamFoulType(type: String, match: MatchRecord?): Boolean {
+        return type == "Falta a Favor" || type == teamFoulEventType(match)
+    }
+
+    private fun isOpponentFoulType(type: String, match: MatchRecord?): Boolean {
+        return type == "Falta en Contra" || type == opponentFoulEventType(match)
+    }
+
+    private fun isTeamFreeKickType(type: String, match: MatchRecord?): Boolean {
+        return type == "Tiro Libre a Favor" || type == teamFreeKickEventType(match)
+    }
+
+    private fun isOpponentFreeKickType(type: String, match: MatchRecord?): Boolean {
+        return type == "Tiro Libre en Contra" || type == opponentFreeKickEventType(match)
+    }
+
+    private fun isTeamPenaltyType(type: String, match: MatchRecord?): Boolean {
+        return type == "Penal a Favor" || type == teamPenaltyEventType(match)
+    }
+
+    private fun isOpponentPenaltyType(type: String, match: MatchRecord?): Boolean {
+        return type == "Penal en Contra" || type == opponentPenaltyEventType(match)
+    }
+
+    private fun isOpponentGoalChanceType(type: String, match: MatchRecord?): Boolean {
+        return type == "Oportunidad de Gol Rival" || type == opponentGoalChanceEventType(match)
+    }
+
     private fun buildDraftFromMatch(match: MatchRecord, playerId: Int): PlayerStatsDraft {
         val allPlayers = match.starters + match.substitutes + match.expelledPlayers + match.injuredPlayers
         val player = allPlayers.firstOrNull { it.id == playerId }
@@ -276,41 +340,40 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
         playerEvents.forEach { event ->
             val count = parseEventCount(event)
-            draft = when (event.type) {
-                "Gol a Favor" -> draft.copy(golFavor = draft.golFavor + count)
-                "Gol en Contra" -> draft.copy(golContra = draft.golContra + count)
-                "Tiro al Arco +" -> draft.copy(tiroAlArcoPositivo = draft.tiroAlArcoPositivo + count)
-                "Tiro al Arco -" -> draft.copy(tiroAlArcoNegativo = draft.tiroAlArcoNegativo + count)
-                "Asistencia a favor" -> draft.copy(participacionGolFavor = draft.participacionGolFavor + count)
-                "Asistencia en contra" -> draft.copy(participacionGolContra = draft.participacionGolContra + count)
-                "Remate 1/2 +" -> draft.copy(remate12Positivo = draft.remate12Positivo + count)
-                "Remate 1/2 -" -> draft.copy(remate12Negativo = draft.remate12Negativo + count)
+            val type = event.type
 
-                "Balón Recup." -> draft.copy(balonRecogidoFavor = draft.balonRecogidoFavor + count)
-                "Balón Perdido" -> draft.copy(balonRecogidoContra = draft.balonRecogidoContra + count)
-                "Pases Buenos" -> draft.copy(pasesBuenos = draft.pasesBuenos + count)
-                "Pases Malos" -> draft.copy(pasesMalos = draft.pasesMalos + count)
-                "Centros +" -> draft.copy(centrosPositivos = draft.centrosPositivos + count)
-                "Centros -" -> draft.copy(centrosNegativos = draft.centrosNegativos + count)
-                "Rechazos +" -> draft.copy(rechazosPositivos = draft.rechazosPositivos + count)
-                "Rechazos -" -> draft.copy(rechazosNegativos = draft.rechazosNegativos + count)
+            draft = when {
+                isTeamGoalType(type, match) -> draft.copy(golFavor = draft.golFavor + count)
+                isOpponentGoalType(type, match) -> draft.copy(golContra = draft.golContra + count)
+                type == "Tiro al Arco +" -> draft.copy(tiroAlArcoPositivo = draft.tiroAlArcoPositivo + count)
+                type == "Tiro al Arco -" -> draft.copy(tiroAlArcoNegativo = draft.tiroAlArcoNegativo + count)
+                isTeamAssistType(type, match) -> draft.copy(participacionGolFavor = draft.participacionGolFavor + count)
+                isOpponentAssistType(type, match) -> draft.copy(participacionGolContra = draft.participacionGolContra + count)
+                type == "Remate 1/2 +" -> draft.copy(remate12Positivo = draft.remate12Positivo + count)
+                type == "Remate 1/2 -" -> draft.copy(remate12Negativo = draft.remate12Negativo + count)
 
-                "Falta a Favor" -> draft.copy(faltaFavor = draft.faltaFavor + count)
-                "Falta en Contra" -> draft.copy(faltaContra = draft.faltaContra + count)
-                "Corner +" -> draft.copy(cornerPositivo = draft.cornerPositivo + count)
-                "Corner -" -> draft.copy(cornerNegativo = draft.cornerNegativo + count)
-                "Tiro Libre a Favor" -> draft.copy(tiroLibreFavor = draft.tiroLibreFavor + count)
-                "Tiro Libre en Contra" -> draft.copy(tiroLibreContra = draft.tiroLibreContra + count)
-                "Penal a Favor" -> draft.copy(penalFavor = draft.penalFavor + count)
-                "Penal en Contra" -> draft.copy(penalContra = draft.penalContra + count)
+                type == "Balón Recup." || type == "Balón Recogido a Favor" -> draft.copy(balonRecogidoFavor = draft.balonRecogidoFavor + count)
+                type == "Balón Perdido" || type == "Balón Recogido en Contra" -> draft.copy(balonRecogidoContra = draft.balonRecogidoContra + count)
+                type == "Pases Buenos" -> draft.copy(pasesBuenos = draft.pasesBuenos + count)
+                type == "Pases Malos" -> draft.copy(pasesMalos = draft.pasesMalos + count)
+                type == "Centros +" -> draft.copy(centrosPositivos = draft.centrosPositivos + count)
+                type == "Centros -" -> draft.copy(centrosNegativos = draft.centrosNegativos + count)
+                type == "Rechazos +" -> draft.copy(rechazosPositivos = draft.rechazosPositivos + count)
+                type == "Rechazos -" -> draft.copy(rechazosNegativos = draft.rechazosNegativos + count)
 
-                "Amarilla" -> draft.copy(amarilla = draft.amarilla + count)
-                "Roja" -> draft.copy(roja = draft.roja + count)
+                isTeamFoulType(type, match) -> draft.copy(faltaFavor = draft.faltaFavor + count)
+                isOpponentFoulType(type, match) -> draft.copy(faltaContra = draft.faltaContra + count)
+                type == "Corner +" -> draft.copy(cornerPositivo = draft.cornerPositivo + count)
+                type == "Corner -" -> draft.copy(cornerNegativo = draft.cornerNegativo + count)
+                isTeamFreeKickType(type, match) -> draft.copy(tiroLibreFavor = draft.tiroLibreFavor + count)
+                isOpponentFreeKickType(type, match) -> draft.copy(tiroLibreContra = draft.tiroLibreContra + count)
+                isTeamPenaltyType(type, match) -> draft.copy(penalFavor = draft.penalFavor + count)
+                isOpponentPenaltyType(type, match) -> draft.copy(penalContra = draft.penalContra + count)
 
-                // Evento informativo extra, no suma más amarillas,
-                // solo asegura reconstrucción correcta si existe sin el conteo previo.
-                "Doble Amarilla" -> draft.copy(amarilla = maxOf(draft.amarilla, 2))
+                type == "Amarilla" -> draft.copy(amarilla = draft.amarilla + count)
+                type == "Roja" -> draft.copy(roja = draft.roja + count)
 
+                type == "Doble Amarilla" -> draft.copy(amarilla = maxOf(draft.amarilla, 2))
                 else -> draft
             }
         }
@@ -358,6 +421,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun buildEventsFromDraftForPlayer(
+        match: MatchRecord,
         player: Player,
         draft: PlayerStatsDraft,
         oldEventsOfPlayer: List<MatchEvent>,
@@ -365,33 +429,35 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     ): List<MatchEvent> {
         val result = mutableListOf<MatchEvent>()
 
-        fun oldEvent(type: String) = oldEventsOfPlayer.firstOrNull { it.type == type }
+        fun oldEvent(vararg types: String) = oldEventsOfPlayer.firstOrNull { current ->
+            types.any { it == current.type }
+        }
 
-        fun addIfNeeded(type: String, count: Int) {
+        fun addIfNeeded(type: String, count: Int, vararg legacyTypes: String) {
             if (count <= 0) return
-            val previous = oldEvent(type)
+            val previous = oldEvent(type, *legacyTypes)
             result.add(
                 createEventFromDraft(
                     player = player,
                     type = type,
                     count = count,
                     timestampLabel = previous?.timestampLabel ?: defaultTimestamp,
-                    minute = previous?.minute ?: getCurrentMatchMinute(currentMatch ?: return)
+                    minute = previous?.minute ?: getCurrentMatchMinute(match)
                 )
             )
         }
 
-        addIfNeeded("Gol a Favor", draft.golFavor)
-        addIfNeeded("Gol en Contra", draft.golContra)
+        addIfNeeded(teamGoalEventType(match), draft.golFavor, "Gol a Favor")
+        addIfNeeded(opponentGoalEventType(match), draft.golContra, "Gol en Contra")
         addIfNeeded("Tiro al Arco +", draft.tiroAlArcoPositivo)
         addIfNeeded("Tiro al Arco -", draft.tiroAlArcoNegativo)
-        addIfNeeded("Asistencia a favor", draft.participacionGolFavor)
-        addIfNeeded("Asistencia en contra", draft.participacionGolContra)
+        addIfNeeded(teamAssistEventType(match), draft.participacionGolFavor, "Asistencia a favor")
+        addIfNeeded(opponentAssistEventType(match), draft.participacionGolContra, "Asistencia en contra")
         addIfNeeded("Remate 1/2 +", draft.remate12Positivo)
         addIfNeeded("Remate 1/2 -", draft.remate12Negativo)
 
-        addIfNeeded("Balón Recogido a Favor", draft.balonRecogidoFavor)
-        addIfNeeded("Balón Recogido en Contra", draft.balonRecogidoContra)
+        addIfNeeded("Balón Recogido a Favor", draft.balonRecogidoFavor, "Balón Recup.")
+        addIfNeeded("Balón Recogido en Contra", draft.balonRecogidoContra, "Balón Perdido")
         addIfNeeded("Pases Buenos", draft.pasesBuenos)
         addIfNeeded("Pases Malos", draft.pasesMalos)
         addIfNeeded("Centros +", draft.centrosPositivos)
@@ -399,14 +465,14 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         addIfNeeded("Rechazos +", draft.rechazosPositivos)
         addIfNeeded("Rechazos -", draft.rechazosNegativos)
 
-        addIfNeeded("Falta a Favor", draft.faltaFavor)
-        addIfNeeded("Falta en Contra", draft.faltaContra)
+        addIfNeeded(teamFoulEventType(match), draft.faltaFavor, "Falta a Favor")
+        addIfNeeded(opponentFoulEventType(match), draft.faltaContra, "Falta en Contra")
         addIfNeeded("Corner +", draft.cornerPositivo)
         addIfNeeded("Corner -", draft.cornerNegativo)
-        addIfNeeded("Tiro Libre a Favor", draft.tiroLibreFavor)
-        addIfNeeded("Tiro Libre en Contra", draft.tiroLibreContra)
-        addIfNeeded("Penal a Favor", draft.penalFavor)
-        addIfNeeded("Penal en Contra", draft.penalContra)
+        addIfNeeded(teamFreeKickEventType(match), draft.tiroLibreFavor, "Tiro Libre a Favor")
+        addIfNeeded(opponentFreeKickEventType(match), draft.tiroLibreContra, "Tiro Libre en Contra")
+        addIfNeeded(teamPenaltyEventType(match), draft.penalFavor, "Penal a Favor")
+        addIfNeeded(opponentPenaltyEventType(match), draft.penalContra, "Penal en Contra")
 
         addIfNeeded("Amarilla", draft.amarilla)
 
@@ -423,7 +489,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     private fun buildEditChanges(
         playerName: String,
         original: PlayerStatsDraft,
-        updated: PlayerStatsDraft
+        updated: PlayerStatsDraft,
+        match: MatchRecord
     ): List<String> {
         val changes = mutableListOf<String>()
 
@@ -433,12 +500,12 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
 
-        compare("Gol a Favor", original.golFavor, updated.golFavor)
-        compare("Gol en Contra", original.golContra, updated.golContra)
+        compare(teamGoalEventType(match), original.golFavor, updated.golFavor)
+        compare(opponentGoalEventType(match), original.golContra, updated.golContra)
         compare("Tiro al Arco +", original.tiroAlArcoPositivo, updated.tiroAlArcoPositivo)
         compare("Tiro al Arco -", original.tiroAlArcoNegativo, updated.tiroAlArcoNegativo)
-        compare("Asistencia a favor", original.participacionGolFavor, updated.participacionGolFavor)
-        compare("Asistencia en contra", original.participacionGolContra, updated.participacionGolContra)
+        compare(teamAssistEventType(match), original.participacionGolFavor, updated.participacionGolFavor)
+        compare(opponentAssistEventType(match), original.participacionGolContra, updated.participacionGolContra)
         compare("Remate 1/2 +", original.remate12Positivo, updated.remate12Positivo)
         compare("Remate 1/2 -", original.remate12Negativo, updated.remate12Negativo)
 
@@ -451,14 +518,14 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         compare("Rechazos +", original.rechazosPositivos, updated.rechazosPositivos)
         compare("Rechazos -", original.rechazosNegativos, updated.rechazosNegativos)
 
-        compare("Falta a Favor", original.faltaFavor, updated.faltaFavor)
-        compare("Falta en Contra", original.faltaContra, updated.faltaContra)
+        compare(teamFoulEventType(match), original.faltaFavor, updated.faltaFavor)
+        compare(opponentFoulEventType(match), original.faltaContra, updated.faltaContra)
         compare("Corner +", original.cornerPositivo, updated.cornerPositivo)
         compare("Corner -", original.cornerNegativo, updated.cornerNegativo)
-        compare("Tiro Libre a Favor", original.tiroLibreFavor, updated.tiroLibreFavor)
-        compare("Tiro Libre en Contra", original.tiroLibreContra, updated.tiroLibreContra)
-        compare("Penal a Favor", original.penalFavor, updated.penalFavor)
-        compare("Penal en Contra", original.penalContra, updated.penalContra)
+        compare(teamFreeKickEventType(match), original.tiroLibreFavor, updated.tiroLibreFavor)
+        compare(opponentFreeKickEventType(match), original.tiroLibreContra, updated.tiroLibreContra)
+        compare(teamPenaltyEventType(match), original.penalFavor, updated.penalFavor)
+        compare(opponentPenaltyEventType(match), original.penalContra, updated.penalContra)
 
         compare("Amarilla", original.amarilla, updated.amarilla)
         compare("Roja", original.roja, updated.roja)
@@ -475,12 +542,13 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         val updatedDraft = playerStatsDrafts[key] ?: return emptyList()
         val originalDraft = originalPlayerStatsDrafts[key] ?: buildDraftFromMatch(match, playerId)
 
-        val changes = buildEditChanges(player.name, originalDraft, updatedDraft)
+        val changes = buildEditChanges(player.name, originalDraft, updatedDraft, match)
 
         val oldEventsOfPlayer = match.events.filter { it.playerId == playerId }
         val eventsWithoutPlayer = match.events.filterNot { it.playerId == playerId }.toMutableList()
 
         val rebuiltEventsForPlayer = buildEventsFromDraftForPlayer(
+            match = match,
             player = player,
             draft = updatedDraft,
             oldEventsOfPlayer = oldEventsOfPlayer,
@@ -491,7 +559,10 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
         val updatedMatch = match.copy(
             events = rebuiltEvents,
-            opponentGoals = calculateOpponentGoalsFromEvents(rebuiltEvents)
+            opponentGoals = calculateOpponentGoalsFromEvents(rebuiltEvents, match),
+            opponentGoalChances = rebuiltEvents.sumOf { event ->
+                if (isOpponentGoalChanceType(event.type, match)) parseEventCount(event) else 0
+            }
         )
 
         updateFinishedMatch(updatedMatch)
@@ -541,6 +612,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         val eventsWithoutPlayer = match.events.filterNot { it.playerId == playerId }.toMutableList()
 
         val rebuiltEventsForPlayer = buildEventsFromDraftForPlayer(
+            match = match,
             player = player,
             draft = draft,
             oldEventsOfPlayer = oldEventsOfPlayer,
@@ -553,7 +625,10 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
         val updatedMatch = match.copy(
             events = rebuiltEvents,
-            opponentGoals = calculateOpponentGoalsFromEvents(rebuiltEvents)
+            opponentGoals = calculateOpponentGoalsFromEvents(rebuiltEvents, match),
+            opponentGoalChances = rebuiltEvents.sumOf { event ->
+                if (isOpponentGoalChanceType(event.type, match)) parseEventCount(event) else 0
+            }
         )
         currentMatch = updatedMatch
 
@@ -563,12 +638,12 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
             if (value > 0) changes.add("${player.name}: $label x$value")
         }
 
-        addChange("Gol a Favor", draft.golFavor)
-        addChange("Gol en Contra", draft.golContra)
+        addChange(teamGoalEventType(match), draft.golFavor)
+        addChange(opponentGoalEventType(match), draft.golContra)
         addChange("Tiro al Arco +", draft.tiroAlArcoPositivo)
         addChange("Tiro al Arco -", draft.tiroAlArcoNegativo)
-        addChange("Asistencia a favor", draft.participacionGolFavor)
-        addChange("Asistencia en contra", draft.participacionGolContra)
+        addChange(teamAssistEventType(match), draft.participacionGolFavor)
+        addChange(opponentAssistEventType(match), draft.participacionGolContra)
         addChange("Remate 1/2 +", draft.remate12Positivo)
         addChange("Remate 1/2 -", draft.remate12Negativo)
 
@@ -581,14 +656,14 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         addChange("Rechazos +", draft.rechazosPositivos)
         addChange("Rechazos -", draft.rechazosNegativos)
 
-        addChange("Falta a Favor", draft.faltaFavor)
-        addChange("Falta en Contra", draft.faltaContra)
+        addChange(teamFoulEventType(match), draft.faltaFavor)
+        addChange(opponentFoulEventType(match), draft.faltaContra)
         addChange("Corner +", draft.cornerPositivo)
         addChange("Corner -", draft.cornerNegativo)
-        addChange("Tiro Libre a Favor", draft.tiroLibreFavor)
-        addChange("Tiro Libre en Contra", draft.tiroLibreContra)
-        addChange("Penal a Favor", draft.penalFavor)
-        addChange("Penal en Contra", draft.penalContra)
+        addChange(teamFreeKickEventType(match), draft.tiroLibreFavor)
+        addChange(opponentFreeKickEventType(match), draft.tiroLibreContra)
+        addChange(teamPenaltyEventType(match), draft.penalFavor)
+        addChange(opponentPenaltyEventType(match), draft.penalContra)
 
         addChange("Amarilla", draft.amarilla)
         addChange("Roja", draft.roja)
@@ -673,7 +748,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         if (delta == 0) return
 
         val updatedEvents = match.events.toMutableList()
-        val rivalName = match.rivalName.ifBlank { "Equipo Rival" }
+        val rivalName = currentRivalLabel(match)
+        val opponentGoalType = opponentGoalEventType(match)
         val minute = getCurrentMatchMinute(match)
         val timestamp = formatMatchClock(match)
 
@@ -682,23 +758,23 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
                 updatedEvents.add(
                     MatchEvent(
                         minute = minute,
-                        type = "Gol Rival",
+                        type = opponentGoalType,
                         playerId = null,
                         playerName = rivalName,
-                        detail = "Gol Rival: 1",
+                        detail = "$opponentGoalType: 1",
                         timestampLabel = timestamp
                     )
                 )
             }
         } else {
             repeat(-delta) {
-                decreaseOrRemoveLastEventOfType(updatedEvents, "Gol Rival")
+                decreaseOrRemoveLastEventOfType(updatedEvents, opponentGoalType, "Gol Rival")
             }
         }
 
         val updatedMatch = match.copy(
             events = updatedEvents,
-            opponentGoals = calculateOpponentGoalsFromEvents(updatedEvents)
+            opponentGoals = calculateOpponentGoalsFromEvents(updatedEvents, match)
         )
 
         currentMatch = updatedMatch
@@ -714,7 +790,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         if (delta == 0) return
 
         val updatedEvents = match.events.toMutableList()
-        val rivalName = match.rivalName.ifBlank { "Equipo Rival" }
+        val rivalName = currentRivalLabel(match)
+        val opponentChanceType = opponentGoalChanceEventType(match)
         val minute = getCurrentMatchMinute(match)
         val timestamp = formatMatchClock(match)
 
@@ -723,23 +800,23 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
                 updatedEvents.add(
                     MatchEvent(
                         minute = minute,
-                        type = "Oportunidad de Gol Rival",
+                        type = opponentChanceType,
                         playerId = null,
                         playerName = rivalName,
-                        detail = "Oportunidad de Gol Rival: 1",
+                        detail = "$opponentChanceType: 1",
                         timestampLabel = timestamp
                     )
                 )
             }
         } else {
             repeat(-delta) {
-                decreaseOrRemoveLastEventOfType(updatedEvents, "Oportunidad de Gol Rival")
+                decreaseOrRemoveLastEventOfType(updatedEvents, opponentChanceType, "Oportunidad de Gol Rival")
             }
         }
 
         val updatedMatch = match.copy(
             opponentGoalChances = updatedEvents.sumOf { event ->
-                if (event.type == "Oportunidad de Gol Rival") parseEventCount(event) else 0
+                if (isOpponentGoalChanceType(event.type, match)) parseEventCount(event) else 0
             },
             events = updatedEvents
         )
@@ -752,22 +829,27 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    private fun calculateOpponentGoalsFromEvents(events: List<MatchEvent>): Int {
+    private fun calculateOpponentGoalsFromEvents(
+        events: List<MatchEvent>,
+        match: MatchRecord? = currentMatch
+    ): Int {
+        val safeMatch = match ?: return 0
         return events.sumOf { event ->
-            when (event.type) {
-                "Gol Rival", "Gol en Contra" -> parseEventCount(event)
-                else -> 0
-            }
+            if (isOpponentGoalType(event.type, safeMatch)) parseEventCount(event) else 0
         }
     }
 
     fun getBlockedOpponentGoalRemovalMessage(): String? {
         val match = currentMatch ?: return null
 
-        val hasManualRivalGoal = match.events.any { it.type == "Gol Rival" }
+        val hasManualRivalGoal = match.events.any { event ->
+            event.playerId == null && (event.type == "Gol Rival" || event.type == opponentGoalEventType(match))
+        }
         if (hasManualRivalGoal) return null
 
-        val lastOwnGoal = match.events.lastOrNull { it.type == "Gol en Contra" }
+        val lastOwnGoal = match.events.lastOrNull { event ->
+            event.playerId != null && isOpponentGoalType(event.type, match)
+        }
         return if (lastOwnGoal != null) {
             "No se puede eliminar: Gol en contra por ${lastOwnGoal.playerName}"
         } else {
@@ -777,9 +859,11 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun decreaseOrRemoveLastEventOfType(
         events: MutableList<MatchEvent>,
-        type: String
+        type: String,
+        vararg legacyTypes: String
     ): Boolean {
-        val index = events.indexOfLast { it.type == type }
+        val acceptedTypes = setOf(type, *legacyTypes)
+        val index = events.indexOfLast { it.type in acceptedTypes }
         if (index == -1) return false
 
         val target = events[index]
@@ -976,12 +1060,12 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
             playerTimes = finalizedPlayerTimes,
             isStarted = false,
             isFinished = true,
-            remainingSeconds = 0,
+            remainingSeconds = match.remainingSeconds,
             finishedAtMillis = System.currentTimeMillis(),
             finishedAtLabel = getElapsedMatchTimeLabel(match),
-            opponentGoals = calculateOpponentGoalsFromEvents(match.events),
+            opponentGoals = calculateOpponentGoalsFromEvents(match.events, match),
             opponentGoalChances = match.events.sumOf { event ->
-                if (event.type == "Oportunidad de Gol Rival") parseEventCount(event) else 0
+                if (isOpponentGoalChanceType(event.type, match)) parseEventCount(event) else 0
             }
         )
 
@@ -1156,9 +1240,9 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
                         isFinished = true,
                         finishedAtMillis = System.currentTimeMillis(),
                         finishedAtLabel = getElapsedMatchTimeLabel(zeroMatch),
-                        opponentGoals = calculateOpponentGoalsFromEvents(zeroMatch.events),
+                        opponentGoals = calculateOpponentGoalsFromEvents(zeroMatch.events, zeroMatch),
                         opponentGoalChances = zeroMatch.events.sumOf { event ->
-                            if (event.type == "Oportunidad de Gol Rival") parseEventCount(event) else 0
+                            if (isOpponentGoalChanceType(event.type, zeroMatch)) parseEventCount(event) else 0
                         }
                     )
 

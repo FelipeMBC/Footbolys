@@ -84,6 +84,9 @@ import com.fmarquez.footboly.navigation.Screen
 import com.fmarquez.footboly.util.hexToColor
 import com.fmarquez.footboly.util.teamColorLight
 import com.fmarquez.footboly.vm.FutbolViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val BgColor = Color(0xFFF7F7F5)
 private val SurfaceColor = Color(0xFFFFFFFF)
@@ -110,10 +113,69 @@ private fun parseEventCount(detail: String): Int {
     return detail.substringAfter(": ", "").toIntOrNull() ?: 1
 }
 
-private fun normalizeEventType(type: String): String {
+private fun currentTeamLabel(match: MatchRecord?): String {
+    return match?.teamName?.ifBlank { "Mi Equipo" } ?: "Mi Equipo"
+}
+
+private fun currentRivalLabel(match: MatchRecord?): String {
+    return match?.rivalName?.ifBlank { "Visita" } ?: "Visita"
+}
+
+private fun completedAtMillis(match: MatchRecord): Long {
+    return match.finishedAtMillis ?: match.createdAtMillis
+}
+
+private fun completedDateText(match: MatchRecord): String {
+    return SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(completedAtMillis(match)))
+}
+
+private fun completedTimeText(match: MatchRecord): String {
+    return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(completedAtMillis(match)))
+}
+
+private fun actualMatchDurationSeconds(match: MatchRecord): Int {
+    return (match.totalSeconds - match.remainingSeconds).coerceAtLeast(0)
+}
+
+private fun actualMatchDurationText(match: MatchRecord): String {
+    val total = actualMatchDurationSeconds(match)
+    val hours = total / 3600
+    val minutes = (total % 3600) / 60
+    val seconds = total % 60
+
+    return if (hours > 0) {
+        String.format(Locale.getDefault(), "%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+    }
+}
+
+private fun isTeamGoalType(type: String, match: MatchRecord?): Boolean {
+    return type == "Gol a Favor" || type == "Gol de ${currentTeamLabel(match)}"
+}
+
+private fun isOpponentGoalType(type: String, match: MatchRecord?): Boolean {
+    return type == "Gol en Contra" || type == "Gol Rival" || type == "Gol de${currentRivalLabel(match)}"
+}
+
+private fun normalizeEventType(type: String, match: MatchRecord? = null): String {
+    val teamName = currentTeamLabel(match)
+    val rivalName = currentRivalLabel(match)
+
     return when (type) {
+        "Gol a Favor" -> "Gol de $teamName"
+        "Gol en Contra", "Gol Rival" -> "Gol de $rivalName"
+        "Asistencia a favor" -> "Participación Gol de $teamName"
+        "Asistencia en contra" -> "Participación Gol de $rivalName"
         "Balón Recogido a Favor" -> "Balón Recuperado"
         "Balón Recogido en Contra" -> "Balón Perdido"
+        "Falta a Favor" -> "Falta para $teamName"
+        "Falta en Contra" -> "Falta para $rivalName"
+        "Tiro Libre a Favor" -> "Tiro Libre para $teamName"
+        "Tiro Libre en Contra" -> "Tiro Libre para $rivalName"
+        "Penal a Favor" -> "Penal para $teamName"
+        "Penal en Contra" -> "Penal para $rivalName"
+        "Oportunidad de Gol Rival" -> "Oportunidad de Gol de $rivalName"
         else -> type
     }
 }
@@ -147,8 +209,11 @@ private fun playerCardCounts(
     return yellow to red
 }
 
-private fun buildEventSummary(events: List<MatchEvent>): List<EventSummaryItem> {
-    val grouped = events.groupBy { normalizeEventType(it.type) }
+private fun buildEventSummary(
+    events: List<MatchEvent>,
+    match: MatchRecord? = null
+): List<EventSummaryItem> {
+    val grouped = events.groupBy { normalizeEventType(it.type, match) }
 
     return grouped.map { (displayType, typeEvents) ->
         val total = typeEvents.sumOf { parseEventCount(it.detail) }
@@ -172,7 +237,7 @@ private fun buildEventSummary(events: List<MatchEvent>): List<EventSummaryItem> 
 
 private fun teamGoals(match: MatchRecord): Int {
     return match.events
-        .filter { it.type == "Gol a Favor" }
+        .filter { isTeamGoalType(it.type, match) }
         .sumOf { parseEventCount(it.detail) }
 }
 
@@ -196,7 +261,7 @@ fun MatchTimelineScreen(
     var showAllDetailsDialog by remember { mutableStateOf(false) }
     var matchToDelete by remember { mutableStateOf<MatchRecord?>(null) }
     var selectedEventSummary by remember { mutableStateOf<EventSummaryItem?>(null) }
-    val summarizedEvents = selectedMatch?.let { buildEventSummary(it.events) } ?: emptyList()
+    val summarizedEvents = selectedMatch?.let { buildEventSummary(it.events, it) } ?: emptyList()
 
     Scaffold(
         containerColor = BgColor,
@@ -303,7 +368,7 @@ fun MatchTimelineScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = eventIcon(item.originalType),
+                                            imageVector = eventIcon(item.originalType, match = selectedMatch),
                                             contentDescription = item.displayType,
                                             tint = matchColor,
                                             modifier = Modifier.size(20.dp)
@@ -411,7 +476,7 @@ fun MatchTimelineScreen(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
-                                            imageVector = eventIcon(eventItem.originalType),
+                                            imageVector = eventIcon(eventItem.originalType, match = selectedMatch),
                                             contentDescription = eventItem.displayType,
                                             tint = selectedMatchColor,
                                             modifier = Modifier.size(18.dp)
@@ -569,7 +634,7 @@ fun MatchHistoryList(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = match.matchDateLabel.ifBlank { match.finishedAtLabel.ifBlank { "Sin fecha" } },
+                                    text = completedDateText(match),
                                     fontSize = 12.sp,
                                     color = TextSecondary
                                 )
@@ -586,7 +651,7 @@ fun MatchHistoryList(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Duración: ${match.totalSeconds / 60} min",
+                                    text = "Duración: ${actualMatchDurationText(match)}",
                                     fontSize = 12.sp,
                                     color = TextSecondary
                                 )
@@ -677,10 +742,10 @@ fun MatchDetailContent(
     LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             val teamGoalsValue = teamGoals(match)
-            val rivalNameLabel = match.rivalName.ifBlank { "Equipo Visita" }
-            val dateTimeLabel = match.matchDateLabel.ifBlank {
-                match.finishedAtLabel.ifBlank { "Sin fecha" }
-            }
+            val rivalNameLabel = match.rivalName.ifBlank { "Visita" }
+            val completedDate = completedDateText(match)
+            val completedTime = completedTimeText(match)
+            val completedDuration = actualMatchDurationText(match)
 
             Card(
                 modifier = Modifier
@@ -814,11 +879,9 @@ fun MatchDetailContent(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         SummaryRow("Cantidad Eventos", "${expandedTimelineEvents.size}", teamColor)
-                        SummaryRowWithIcon(
-                            label = "Fecha y Hora",
-                            value = dateTimeLabel,
-                            teamColor = teamColor
-                        )
+                        SummaryRow("Fecha", completedDate, teamColor)
+                        SummaryRow("Hora", completedTime, teamColor)
+                        SummaryRow("Duración", completedDuration, teamColor)
                     }
                 }
             }
@@ -982,7 +1045,7 @@ fun MatchDetailContent(
                 }
             ) { _, event ->
                 MatchEventReportCard(
-                    title = formatEventTitle(event.type, event.detail),
+                    title = formatEventTitle(event.type, event.detail, match),
                     timeLabel = event.timestampLabel,
                     playerName = event.playerName,
                     detail = event.detail,
@@ -1446,7 +1509,7 @@ fun MatchEventReportCard(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = eventIcon(title, detail),
+                    imageVector = eventIcon(title, detail, match = null),
                     contentDescription = title,
                     tint = accentColor,
                     modifier = Modifier.size(22.dp)
@@ -1494,21 +1557,22 @@ fun MatchEventReportCard(
     }
 }
 
-fun formatEventTitle(type: String, detail: String): String {
-    val normalizedType = normalizeEventType(type)
+fun formatEventTitle(type: String, detail: String, match: MatchRecord? = null): String {
+    val normalizedType = normalizeEventType(type, match)
     if (normalizedType == "Cambio") return "Cambio"
     return normalizedType
 }
 
-fun eventIcon(type: String, detail: String = ""): ImageVector {
-    val normalizedType = normalizeEventType(type)
+fun eventIcon(type: String, detail: String = "", match: MatchRecord? = null): ImageVector {
+    val normalizedType = normalizeEventType(type, match)
 
     return when {
         normalizedType == "Cambio" || detail.startsWith("Entra ") -> Icons.Default.TrackChanges
 
         normalizedType.startsWith("Gol") -> Icons.Default.SportsSoccer
+        normalizedType.startsWith("Oportunidad de Gol") -> Icons.Default.GpsFixed
         normalizedType.startsWith("Tiro al Arco") -> Icons.Default.GpsFixed
-        normalizedType.startsWith("Participación de Gol") -> Icons.Default.Send
+        normalizedType.startsWith("Participación Gol") -> Icons.Default.Send
         normalizedType.startsWith("Remate 1/2") -> Icons.Default.TrackChanges
 
         normalizedType.startsWith("Balón Recuperado") -> Icons.Default.Security
@@ -1520,14 +1584,14 @@ fun eventIcon(type: String, detail: String = ""): ImageVector {
         normalizedType.startsWith("Rechazos +") -> Icons.Default.CheckCircle
         normalizedType.startsWith("Rechazos -") -> Icons.Default.Cancel
 
-        normalizedType.startsWith("Falta a Favor") -> Icons.Default.CheckCircle
-        normalizedType.startsWith("Falta en Contra") -> Icons.Default.Cancel
+        normalizedType.startsWith("Falta para") -> Icons.Default.CheckCircle
+        normalizedType.startsWith("Falta para") -> Icons.Default.Cancel
         normalizedType.startsWith("Corner +") -> Icons.Default.NorthEast
         normalizedType.startsWith("Corner -") -> Icons.Default.SouthWest
-        normalizedType.startsWith("Tiro Libre a Favor") -> Icons.Default.RadioButtonChecked
-        normalizedType.startsWith("Tiro Libre en Contra") -> Icons.Default.Cancel
-        normalizedType.startsWith("Penal a Favor") -> Icons.Default.SportsSoccer
-        normalizedType.startsWith("Penal en Contra") -> Icons.Default.HighlightOff
+        normalizedType.startsWith("Tiro Libre para") -> Icons.Default.RadioButtonChecked
+        normalizedType.startsWith("Tiro Libre para") -> Icons.Default.Cancel
+        normalizedType.startsWith("Penal para") -> Icons.Default.SportsSoccer
+        normalizedType.startsWith("Penal para") -> Icons.Default.HighlightOff
 
         normalizedType.startsWith("Doble Amarilla") -> Icons.Default.Warning
         normalizedType.startsWith("Amarilla") -> Icons.Default.Warning
