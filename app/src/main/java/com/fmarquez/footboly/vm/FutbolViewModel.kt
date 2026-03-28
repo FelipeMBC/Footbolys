@@ -265,6 +265,38 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         return detailCount ?: 1
     }
 
+    private fun allPlayersOf(match: MatchRecord): List<Player> {
+        return (match.starters + match.substitutes + match.expelledPlayers + match.injuredPlayers)
+            .distinctBy { it.id }
+    }
+
+    private fun calculateOpponentGoalChancesFromEvents(
+        events: List<MatchEvent>,
+        match: MatchRecord
+    ): Int {
+        return events.sumOf { event ->
+            if (isOpponentGoalChanceType(event.type, match)) parseEventCount(event) else 0
+        }
+    }
+
+    private fun buildElapsedMatchEvent(
+        match: MatchRecord,
+        type: String,
+        playerName: String,
+        playerId: Int? = null,
+        count: Int = 1,
+        detail: String = "$type: $count"
+    ): MatchEvent {
+        return MatchEvent(
+            minute = elapsedSeconds(match) / 60,
+            type = type,
+            playerId = playerId,
+            playerName = playerName,
+            detail = detail,
+            timestampLabel = getElapsedMatchTimeLabel(match)
+        )
+    }
+
     private fun currentTeamLabel(match: MatchRecord?): String {
         return match?.teamName?.ifBlank { "Mi Equipo" } ?: "Mi Equipo"
     }
@@ -330,8 +362,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun buildDraftFromMatch(match: MatchRecord, playerId: Int): PlayerStatsDraft {
-        val allPlayers = match.starters + match.substitutes + match.expelledPlayers + match.injuredPlayers
-        val player = allPlayers.firstOrNull { it.id == playerId }
+        val player = allPlayersOf(match).firstOrNull { it.id == playerId }
             ?: return PlayerStatsDraft(playerId = playerId, matchId = match.id)
 
         val playerEvents = match.events.filter { it.playerId == player.id }
@@ -535,8 +566,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
     private fun saveEditedFinishedMatch(playerId: Int): List<String> {
         val match = editingFinishedMatch ?: return emptyList()
-        val allPlayers = match.starters + match.substitutes + match.expelledPlayers + match.injuredPlayers
-        val player = allPlayers.firstOrNull { it.id == playerId } ?: return emptyList()
+        val player = allPlayersOf(match).firstOrNull { it.id == playerId } ?: return emptyList()
 
         val key = statsDraftKey(match.id, playerId)
         val updatedDraft = playerStatsDrafts[key] ?: return emptyList()
@@ -560,9 +590,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         val updatedMatch = match.copy(
             events = rebuiltEvents,
             opponentGoals = calculateOpponentGoalsFromEvents(rebuiltEvents, match),
-            opponentGoalChances = rebuiltEvents.sumOf { event ->
-                if (isOpponentGoalChanceType(event.type, match)) parseEventCount(event) else 0
-            }
+            opponentGoalChances = calculateOpponentGoalChancesFromEvents(rebuiltEvents, match)
         )
 
         updateFinishedMatch(updatedMatch)
@@ -603,8 +631,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
         val match = getActiveMatchForStats() ?: return emptyList()
         val draft = getOrCreatePlayerStatsDraft(playerId)
-        val player = (match.starters + match.substitutes + match.expelledPlayers + match.injuredPlayers)
-            .distinctBy { it.id }
+        val player = allPlayersOf(match)
             .firstOrNull { it.id == playerId }
             ?: return emptyList()
 
@@ -626,9 +653,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         val updatedMatch = match.copy(
             events = rebuiltEvents,
             opponentGoals = calculateOpponentGoalsFromEvents(rebuiltEvents, match),
-            opponentGoalChances = rebuiltEvents.sumOf { event ->
-                if (isOpponentGoalChanceType(event.type, match)) parseEventCount(event) else 0
-            }
+            opponentGoalChances = calculateOpponentGoalChancesFromEvents(rebuiltEvents, match)
         )
         currentMatch = updatedMatch
 
@@ -750,19 +775,14 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         val updatedEvents = match.events.toMutableList()
         val rivalName = currentRivalLabel(match)
         val opponentGoalType = opponentGoalEventType(match)
-        val minute = getCurrentMatchMinute(match)
-        val timestamp = formatMatchClock(match)
 
         if (delta > 0) {
             repeat(delta) {
                 updatedEvents.add(
-                    MatchEvent(
-                        minute = minute,
+                    buildElapsedMatchEvent(
+                        match = match,
                         type = opponentGoalType,
-                        playerId = null,
-                        playerName = rivalName,
-                        detail = "$opponentGoalType: 1",
-                        timestampLabel = timestamp
+                        playerName = rivalName
                     )
                 )
             }
@@ -792,19 +812,14 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         val updatedEvents = match.events.toMutableList()
         val rivalName = currentRivalLabel(match)
         val opponentChanceType = opponentGoalChanceEventType(match)
-        val minute = getCurrentMatchMinute(match)
-        val timestamp = formatMatchClock(match)
 
         if (delta > 0) {
             repeat(delta) {
                 updatedEvents.add(
-                    MatchEvent(
-                        minute = minute,
+                    buildElapsedMatchEvent(
+                        match = match,
                         type = opponentChanceType,
-                        playerId = null,
-                        playerName = rivalName,
-                        detail = "$opponentChanceType: 1",
-                        timestampLabel = timestamp
+                        playerName = rivalName
                     )
                 )
             }
@@ -815,10 +830,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         val updatedMatch = match.copy(
-            opponentGoalChances = updatedEvents.sumOf { event ->
-                if (isOpponentGoalChanceType(event.type, match)) parseEventCount(event) else 0
-            },
-            events = updatedEvents
+            events = updatedEvents,
+            opponentGoalChances = calculateOpponentGoalChancesFromEvents(updatedEvents, match)
         )
 
         currentMatch = updatedMatch
@@ -903,7 +916,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
     fun removePlayer(player: Player) {
         val team = selectedTeam ?: return
-        viewModelScope.launch { repository.removePlayer(team.id, player.id) }
+        viewModelScope.launch { repository.removePlayer(player.id) }
     }
 
     fun expelPlayerByCard(player: Player, reason: String) {
@@ -948,8 +961,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     fun getSelectedPlayer(): Player? {
         val match = getActiveMatchForStatsInternal() ?: return null
         val id = selectedPlayerId ?: return null
-        val allPlayers = match.starters + match.substitutes + match.expelledPlayers + match.injuredPlayers
-        return allPlayers.firstOrNull { it.id == id }
+        return allPlayersOf(match).firstOrNull { it.id == id }
     }
 
     private fun getElapsedMatchTimeLabel(match: MatchRecord): String {
@@ -990,6 +1002,19 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
                 playerTime
             }
         }.toMutableMap()
+    }
+
+    private fun buildFinishedMatch(match: MatchRecord): MatchRecord {
+        val finalizedPlayerTimes = finalizePlayingTimes(match)
+        return match.copy(
+            playerTimes = finalizedPlayerTimes,
+            isStarted = false,
+            isFinished = true,
+            finishedAtMillis = System.currentTimeMillis(),
+            finishedAtLabel = getElapsedMatchTimeLabel(match),
+            opponentGoals = calculateOpponentGoalsFromEvents(match.events, match),
+            opponentGoalChances = calculateOpponentGoalChancesFromEvents(match.events, match)
+        )
     }
 
     fun getDisplayedPlayerSeconds(playerId: Int, match: MatchRecord? = currentMatch): Int {
@@ -1054,20 +1079,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         matchTimerJob?.cancel()
         resetHalftimeUiState()
 
-        val finalizedPlayerTimes = finalizePlayingTimes(match)
-
-        val finishedMatch = match.copy(
-            playerTimes = finalizedPlayerTimes,
-            isStarted = false,
-            isFinished = true,
-            remainingSeconds = match.remainingSeconds,
-            finishedAtMillis = System.currentTimeMillis(),
-            finishedAtLabel = getElapsedMatchTimeLabel(match),
-            opponentGoals = calculateOpponentGoalsFromEvents(match.events, match),
-            opponentGoalChances = match.events.sumOf { event ->
-                if (isOpponentGoalChanceType(event.type, match)) parseEventCount(event) else 0
-            }
-        )
+        val finishedMatch = buildFinishedMatch(match)
 
         currentMatch = finishedMatch
         putFinishedMatchLocally(finishedMatch)
@@ -1160,18 +1172,18 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     fun addStatEvent(playerId: Int? = null, playerName: String, type: String, count: Int) {
         val match = currentMatch ?: return
         if (count <= 0) return
-        val elapsed = elapsedSeconds(match)
-        val minute = elapsed / 60
-        val timestamp = getElapsedMatchTimeLabel()
-        val newEvent = MatchEvent(
-            minute = minute,
+
+        val newEvent = buildElapsedMatchEvent(
+            match = match,
             type = type,
-            playerId = playerId,
             playerName = playerName,
-            detail = "$type: $count",
-            timestampLabel = timestamp
+            playerId = playerId,
+            count = count
         )
-        val updatedMatch = match.copy(events = match.events.toMutableList().apply { add(newEvent) })
+
+        val updatedMatch = match.copy(
+            events = match.events.toMutableList().apply { add(newEvent) }
+        )
         currentMatch = updatedMatch
         viewModelScope.launch { repository.addEvent(match.id, newEvent) }
     }
@@ -1231,20 +1243,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
                 if (newRemaining == 0) {
                     resetHalftimeUiState()
-                    val zeroMatch = updated.copy(remainingSeconds = 0)
-                    val finalizedPlayerTimes = finalizePlayingTimes(zeroMatch)
-
-                    val finishedMatch = zeroMatch.copy(
-                        playerTimes = finalizedPlayerTimes,
-                        isStarted = false,
-                        isFinished = true,
-                        finishedAtMillis = System.currentTimeMillis(),
-                        finishedAtLabel = getElapsedMatchTimeLabel(zeroMatch),
-                        opponentGoals = calculateOpponentGoalsFromEvents(zeroMatch.events, zeroMatch),
-                        opponentGoalChances = zeroMatch.events.sumOf { event ->
-                            if (isOpponentGoalChanceType(event.type, zeroMatch)) parseEventCount(event) else 0
-                        }
-                    )
+                    val finishedMatch = buildFinishedMatch(updated.copy(remainingSeconds = 0))
 
                     currentMatch = finishedMatch
                     putFinishedMatchLocally(finishedMatch)
@@ -1265,11 +1264,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     fun getFormattedMatchTime(): String {
         val match = currentMatch ?: return "00:00"
         if (match.isFinished) return "Partido terminado"
-
-        val elapsed = (match.totalSeconds - match.remainingSeconds).coerceAtLeast(0)
-        val minutes = elapsed / 60
-        val seconds = elapsed % 60
-        return String.format("%02d:%02d", minutes, seconds)
+        return formatMatchClock(match)
     }
 
     fun registerSwap(starter: Player, sub: Player) {
@@ -1400,8 +1395,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     fun addEvent(minuteText: String, type: String, playerName: String) {
         val match = currentMatch ?: return
         val minute = minuteText.toIntOrNull() ?: 0
-        val allPlayers = match.starters + match.substitutes + match.expelledPlayers + match.injuredPlayers
-        val playerId = allPlayers.firstOrNull { it.name == playerName }?.id
+        val playerId = allPlayersOf(match).firstOrNull { it.name == playerName }?.id
         val event = MatchEvent(
             minute = minute,
             type = type,

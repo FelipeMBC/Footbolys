@@ -26,11 +26,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -106,7 +104,8 @@ private data class EventSummaryItem(
     val originalType: String,
     val displayType: String,
     val total: Int,
-    val players: List<Pair<String, Int>>
+    val players: List<Pair<String, Int>>,
+    val detailLines: List<String>
 )
 
 private fun parseEventCount(detail: String): Int {
@@ -154,8 +153,127 @@ private fun isTeamGoalType(type: String, match: MatchRecord?): Boolean {
     return type == "Gol a Favor" || type == "Gol de ${currentTeamLabel(match)}"
 }
 
+
 private fun isOpponentGoalType(type: String, match: MatchRecord?): Boolean {
-    return type == "Gol en Contra" || type == "Gol Rival" || type == "Gol de${currentRivalLabel(match)}"
+    return type == "Gol en Contra" || type == "Gol Rival" || type == "Gol de ${currentRivalLabel(match)}"
+}
+
+private fun buildNarrativeLine(
+    type: String,
+    playerName: String,
+    match: MatchRecord?
+): String {
+    val teamName = currentTeamLabel(match)
+    val rivalName = currentRivalLabel(match)
+    val safePlayerName = playerName.ifBlank { "Jugador" }
+
+    return when {
+        type == "Amarilla" ->
+            "“$safePlayerName” es amonestado con tarjeta amarilla."
+
+        type == "Doble Amarilla" ->
+            "“$safePlayerName” es expulsado por doble amarilla."
+
+        type == "Roja" ->
+            "“$safePlayerName” es expulsado por roja directa."
+
+        isTeamGoalType(type, match) ->
+            "Gooooool de $teamName, “$safePlayerName” anota un golazo."
+
+        isOpponentGoalType(type, match) ->
+            "Gooooool de $rivalName, el rival convierte para su equipo."
+
+        type == "Asistencia a favor" || type == "Participación Gol de $teamName" ->
+            "Asistencia de gol para “$safePlayerName”."
+
+        type == "Asistencia en contra" || type == "Participación Gol de $rivalName" ->
+            "Falla de “$safePlayerName” en la defensa de $teamName."
+
+        type == "Tiro al Arco +" ->
+            "$teamName se aproxima al arco de $rivalName, posibilidad de gol de “$safePlayerName”."
+
+        type == "Tiro al Arco -" ->
+            "“$safePlayerName” intenta al arco, pero la jugada no termina bien."
+
+        type == "Remate 1/2 +" ->
+            "“$safePlayerName” intenta de media distancia al arco rival."
+
+        type == "Remate 1/2 -" ->
+            "“$safePlayerName” prueba de media distancia, pero el remate no es efectivo."
+
+        type == "Balón Recogido a Favor" || type == "Balón Recuperado" ->
+            "“$safePlayerName” recupera el balón."
+
+        type == "Balón Recogido en Contra" || type == "Balón Perdido" ->
+            "Balón perdido por “$safePlayerName”."
+
+        type == "Pases Malos" ->
+            "Falla en el pase “$safePlayerName”."
+
+        type == "Pases Buenos" ->
+            "“$safePlayerName” da un gran pase para $teamName."
+
+        type == "Centros +" ->
+            "$teamName se aproxima con “$safePlayerName”, que busca el área a través de un gran centro."
+
+        type == "Centros -" ->
+            "$teamName busca el área, pero el centro de “$safePlayerName” no es bueno."
+
+        type == "Rechazos +" ->
+            "“$safePlayerName” realiza un gran rechazo para salvar el peligro."
+
+        type == "Rechazos -" ->
+            "Ataque del $rivalName y “$safePlayerName” falla en el rechazo."
+
+        type == "Penal a Favor" || type == "Penal para $teamName" ->
+            "Falta del jugador del $rivalName a “$safePlayerName” y el árbitro cobra penal para $teamName."
+
+        type == "Penal en Contra" || type == "Penal para $rivalName" ->
+            "“$safePlayerName” comete falta en el área y el árbitro cobra penal para $rivalName."
+
+        type == "Falta a Favor" || type == "Falta para $teamName" ->
+            "“$safePlayerName” cuida el balón y recibe falta."
+
+        type == "Falta en Contra" || type == "Falta para $rivalName" ->
+            "Foul de “$safePlayerName”, el árbitro cobra la falta para $rivalName."
+
+        type == "Corner +" ->
+            "“$safePlayerName” busca el área desde el corner."
+
+        type == "Corner -" ->
+            "“$safePlayerName” envía el balón afuera, corner para $rivalName."
+
+        type == "Tiro Libre a Favor" || type == "Tiro Libre para $teamName" ->
+            "Tiro libre para $teamName tras la jugada de “$safePlayerName”."
+
+        type == "Tiro Libre en Contra" || type == "Tiro Libre para $rivalName" ->
+            "Infracción de “$safePlayerName” y tiro libre para $rivalName."
+
+        type == "Oportunidad de Gol Rival" || type == "Oportunidad de Gol de $rivalName" ->
+            "$rivalName se aproxima al arco de $teamName con una clara oportunidad de gol."
+
+        type == "Cambio" ->
+            "Cambio registrado en $teamName."
+
+        else ->
+            "Evento registrado: ${normalizeEventType(type, match)}."
+    }
+}
+
+private fun buildDetailLines(
+    events: List<MatchEvent>,
+    match: MatchRecord?
+): List<String> {
+    return events.flatMap { event ->
+        val count = parseEventCount(event.detail).coerceAtLeast(1)
+        List(count) {
+            buildNarrativeLine(
+                type = event.type,
+                playerName = event.playerName,
+                match = match
+            )
+        }
+    }
 }
 
 private fun normalizeEventType(type: String, match: MatchRecord? = null): String {
@@ -230,7 +348,8 @@ private fun buildEventSummary(
             originalType = typeEvents.firstOrNull()?.type.orEmpty(),
             displayType = displayType,
             total = total,
-            players = players
+            players = players,
+            detailLines = buildDetailLines(typeEvents, match)
         )
     }.sortedBy { it.displayType }
 }
@@ -385,7 +504,7 @@ fun MatchTimelineScreen(
                                             color = TextPrimary
                                         )
                                         Text(
-                                            text = "Toca para ver jugadores",
+                                            text = "Toca para ver detalle",
                                             fontSize = 12.sp,
                                             color = TextSecondary
                                         )
@@ -442,7 +561,7 @@ fun MatchTimelineScreen(
                         .fillMaxWidth()
                         .heightIn(max = 420.dp)
                         .verticalScroll(scrollState),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
                         text = "Total: ${eventItem.total}",
@@ -451,23 +570,23 @@ fun MatchTimelineScreen(
                         color = TextSecondary
                     )
 
-                    if (eventItem.players.isEmpty()) {
-                        Text("No hay jugadores asociados", color = TextSecondary)
+                    if (eventItem.detailLines.isEmpty()) {
+                        Text("No hay detalle disponible para este evento", color = TextSecondary)
                     } else {
-                        eventItem.players.forEach { (playerName, count) ->
+                        eventItem.detailLines.forEachIndexed { index, line ->
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .border(1.dp, BorderColor, RoundedCornerShape(10.dp)),
-                                shape = RoundedCornerShape(10.dp),
+                                    .border(1.dp, BorderColor, RoundedCornerShape(12.dp)),
+                                shape = RoundedCornerShape(12.dp),
                                 colors = CardDefaults.cardColors(containerColor = SurfaceColor),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                             ) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
+                                        .padding(horizontal = 12.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.Top
                                 ) {
                                     Box(
                                         modifier = Modifier
@@ -475,30 +594,41 @@ fun MatchTimelineScreen(
                                             .background(selectedMatchColorLight, RoundedCornerShape(8.dp)),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Icon(
-                                            imageVector = eventIcon(eventItem.originalType, match = selectedMatch),
-                                            contentDescription = eventItem.displayType,
-                                            tint = selectedMatchColor,
-                                            modifier = Modifier.size(18.dp)
+                                        Text(
+                                            text = "${index + 1}",
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                            color = selectedMatchColor,
+                                            fontSize = 13.sp
                                         )
                                     }
 
                                     Spacer(modifier = Modifier.width(10.dp))
 
                                     Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = eventIcon(eventItem.originalType, match = selectedMatch),
+                                                contentDescription = eventItem.displayType,
+                                                tint = selectedMatchColor,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = "Detalle",
+                                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                                fontSize = 13.sp,
+                                                color = TextPrimary
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+
                                         Text(
-                                            text = playerName,
-                                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                                            fontSize = 14.sp,
-                                            color = TextPrimary
+                                            text = line,
+                                            fontSize = 13.sp,
+                                            color = TextSecondary
                                         )
                                     }
-
-                                    Text(
-                                        text = count.toString(),
-                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                        color = selectedMatchColor
-                                    )
                                 }
                             }
                         }
@@ -1365,116 +1495,6 @@ private fun extractDatePart(dateTimeLabel: String): String {
 
 private fun extractTimePart(dateTimeLabel: String): String {
     return dateTimeLabel.substringAfter("·", "").trim()
-}
-
-@Composable
-private fun SummaryRowWithIcon(label: String, value: String, teamColor: Color) {
-    val datePart = extractDatePart(value)
-    val timePart = extractTimePart(value)
-
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp)
-    ) {
-        val compact = maxWidth < 330.dp
-
-        if (compact) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text = label,
-                    fontSize = 13.sp,
-                    color = teamColor.copy(alpha = 0.7f)
-                )
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.CalendarMonth,
-                        contentDescription = null,
-                        tint = teamColor,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = datePart,
-                        fontSize = 13.sp,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                        color = teamColor
-                    )
-                }
-
-                if (timePart.isNotBlank()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.AccessTime,
-                            contentDescription = null,
-                            tint = teamColor,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = timePart,
-                            fontSize = 13.sp,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                            color = teamColor
-                        )
-                    }
-                }
-            }
-        } else {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Text(
-                    text = label,
-                    fontSize = 13.sp,
-                    color = teamColor.copy(alpha = 0.7f)
-                )
-
-                Column(horizontalAlignment = Alignment.End) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.CalendarMonth,
-                            contentDescription = null,
-                            tint = teamColor,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = datePart,
-                            fontSize = 13.sp,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                            color = teamColor
-                        )
-                    }
-
-                    if (timePart.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.AccessTime,
-                                contentDescription = null,
-                                tint = teamColor,
-                                modifier = Modifier.size(13.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = timePart,
-                                fontSize = 13.sp,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                                color = teamColor
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 @Composable

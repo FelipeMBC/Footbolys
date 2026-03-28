@@ -1,7 +1,5 @@
 package com.fmarquez.footboly.screens
 
-import android.app.DatePickerDialog
-import android.app.TimePickerDialog
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,8 +27,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Healing
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shield
@@ -46,8 +42,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -58,7 +52,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,7 +72,6 @@ import com.fmarquez.footboly.navigation.Screen
 import com.fmarquez.footboly.util.hexToColor
 import com.fmarquez.footboly.util.teamColorLight
 import com.fmarquez.footboly.vm.FutbolViewModel
-import java.util.Calendar
 
 private val BgColor       = Color(0xFFF7F7F5)
 private val SurfaceColor  = Color(0xFFFFFFFF)
@@ -92,18 +84,6 @@ private val ErrorRed      = Color(0xFFD32F2F)
 private val ErrorRedLight = Color(0xFFFFF1F1)
 private val InjuryAmber   = Color(0xFFE65100)
 private val InjuryLight   = Color(0xFFFFF3E0)
-
-private val DIAS  = listOf("Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb")
-private val MESES = listOf("Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic")
-
-private fun formatDateLabel(year: Int, month: Int, day: Int, hour: Int, minute: Int): String {
-    val cal = Calendar.getInstance().apply { set(year, month, day) }
-    val dia = DIAS[cal.get(Calendar.DAY_OF_WEEK) - 1]
-    val mes = MESES[month]
-    val h = hour.toString().padStart(2, '0')
-    val m = minute.toString().padStart(2, '0')
-    return "$dia $day $mes $year · $h:$m"
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -126,15 +106,6 @@ fun MatchConfigScreen(
     var selectedDurationSeconds by remember { mutableIntStateOf(30) }
     val durationOptions = listOf(30, 30 * 60, 90 * 60)
 
-    val nowCal = remember { Calendar.getInstance() }
-    var selYear by remember { mutableIntStateOf(nowCal.get(Calendar.YEAR)) }
-    var selMonth by remember { mutableIntStateOf(nowCal.get(Calendar.MONTH)) }
-    var selDay by remember { mutableIntStateOf(nowCal.get(Calendar.DAY_OF_MONTH)) }
-    var selHour by remember { mutableIntStateOf(nowCal.get(Calendar.HOUR_OF_DAY)) }
-    var selMinute by remember { mutableIntStateOf(nowCal.get(Calendar.MINUTE)) }
-    var dateChosen by remember { mutableStateOf(false) }
-    var timeChosen by remember { mutableStateOf(false) }
-
     LaunchedEffect(match.isStarted, match.isFinished) {
         if (match.isStarted && !match.isFinished) {
             navHostController.navigate(Screen.MATCH_LIVE.route) {
@@ -154,13 +125,7 @@ fun MatchConfigScreen(
     }
 
     fun confirmStart() {
-        val dateLabel = if (dateChosen || timeChosen) {
-            formatDateLabel(selYear, selMonth, selDay, selHour, selMinute)
-        } else {
-            ""
-        }
-
-        vm.setMatchRivalAndDate(rivalName.trim(), dateLabel)
+        vm.setMatchRivalAndDate(rivalName.trim(), "")
         vm.setMatchDurationSeconds(selectedDurationSeconds)
         vm.startMatch()
 
@@ -487,7 +452,7 @@ fun MatchConfigScreen(
                     OutlinedTextField(
                         value = rivalName,
                         onValueChange = { rivalName = it },
-                        label = { Text("Rival (opcional)", fontSize = 13.sp) },
+                        label = { Text("Visita (opcional)", fontSize = 13.sp) },
                         leadingIcon = {
                             Icon(
                                 Icons.Default.Shield,
@@ -510,101 +475,11 @@ fun MatchConfigScreen(
                         )
                     )
 
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .border(
-                                1.dp,
-                                if (dateChosen) teamColor.copy(alpha = 0.5f) else BorderColor,
-                                RoundedCornerShape(10.dp)
-                            )
-                            .clickable {
-                                DatePickerDialog(
-                                    context,
-                                    { _, y, mo, d ->
-                                        selYear = y
-                                        selMonth = mo
-                                        selDay = d
-                                        dateChosen = true
-                                    },
-                                    selYear,
-                                    selMonth,
-                                    selDay
-                                ).show()
-                            }
-                            .padding(horizontal = 14.dp, vertical = 13.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.CalendarMonth,
-                            contentDescription = null,
-                            tint = if (dateChosen) teamColor else TextSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Fecha del partido", fontSize = 11.sp, color = TextSecondary)
-                            Text(
-                                text = if (dateChosen) {
-                                    val cal = Calendar.getInstance().apply { set(selYear, selMonth, selDay) }
-                                    "${DIAS[cal.get(Calendar.DAY_OF_WEEK) - 1]} $selDay ${MESES[selMonth]} $selYear"
-                                } else {
-                                    "Toca para seleccionar"
-                                },
-                                fontSize = 14.sp,
-                                fontWeight = if (dateChosen) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (dateChosen) TextPrimary else TextSecondary
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .border(
-                                1.dp,
-                                if (timeChosen) teamColor.copy(alpha = 0.5f) else BorderColor,
-                                RoundedCornerShape(10.dp)
-                            )
-                            .clickable {
-                                TimePickerDialog(
-                                    context,
-                                    { _, h, m ->
-                                        selHour = h
-                                        selMinute = m
-                                        timeChosen = true
-                                    },
-                                    selHour,
-                                    selMinute,
-                                    true
-                                ).show()
-                            }
-                            .padding(horizontal = 14.dp, vertical = 13.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.AccessTime,
-                            contentDescription = null,
-                            tint = if (timeChosen) teamColor else TextSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Hora de inicio", fontSize = 11.sp, color = TextSecondary)
-                            Text(
-                                text = if (timeChosen) {
-                                    "${selHour.toString().padStart(2, '0')}:${selMinute.toString().padStart(2, '0')}"
-                                } else {
-                                    "Toca para seleccionar"
-                                },
-                                fontSize = 14.sp,
-                                fontWeight = if (timeChosen) FontWeight.SemiBold else FontWeight.Normal,
-                                color = if (timeChosen) TextPrimary else TextSecondary
-                            )
-                        }
-                    }
+                    Text(
+                        text = "La fecha y hora del partido se guardarán automáticamente con el teléfono.",
+                        fontSize = 11.sp,
+                        color = TextSecondary
+                    )
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(

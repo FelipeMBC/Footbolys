@@ -48,7 +48,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -68,7 +67,6 @@ import com.fmarquez.footboly.navigation.Screen
 import com.fmarquez.footboly.util.hexToColor
 import com.fmarquez.footboly.util.teamColorLight
 import com.fmarquez.footboly.vm.FutbolViewModel
-import kotlinx.coroutines.delay
 
 private val BgColor = Color(0xFFF7F7F5)
 private val SurfaceColor = Color(0xFFFFFFFF)
@@ -143,13 +141,6 @@ fun MatchLiveScreen(
     val opponentGoalChances = match.opponentGoalChances
     val isHalftimePaused = vm.isHalftimePaused
     val shouldShowHalftimeDialog = vm.shouldShowHalftimeDialog
-
-    produceState(initialValue = 0, key1 = match.isStarted, key2 = match.isFinished, key3 = isHalftimePaused) {
-        while (match.isStarted && !match.isFinished && !isHalftimePaused) {
-            delay(1000)
-            value++
-        }
-    }
 
     val currentOwnGoals = ownGoals(match.events, team.name)
     val rivalName = match.rivalName.ifBlank { "Equipo Rival" }

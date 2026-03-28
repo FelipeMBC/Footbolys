@@ -13,6 +13,7 @@ import com.fmarquez.footboly.datos.mockTeams
 import com.fmarquez.footboly.dialog.TempPlayerInput
 import com.fmarquez.footboly.modelos.MatchEvent
 import com.fmarquez.footboly.modelos.MatchRecord
+import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.modelos.Team
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -22,23 +23,14 @@ class FootballRepository(
     private val matchDao: MatchDao
 ) {
 
-    fun observeTeams(): Flow<List<Team>> {
-        return teamDao.observeTeams().map { list ->
-            list.map { it.toDomain() }
-        }
-    }
+    fun observeTeams(): Flow<List<Team>> =
+        teamDao.observeTeams().map { teams -> teams.map { it.toDomain() } }
 
-    fun observeLatestMatch(): Flow<MatchRecord?> {
-        return matchDao.observeLatestMatch().map { matchWithDetails ->
-            matchWithDetails?.toDomain()
-        }
-    }
+    fun observeLatestMatch(): Flow<MatchRecord?> =
+        matchDao.observeLatestMatch().map { matchWithDetails -> matchWithDetails?.toDomain() }
 
-    fun observeFinishedMatches(): Flow<List<MatchRecord>> {
-        return matchDao.observeFinishedMatches().map { list ->
-            list.map { it.toDomain() }
-        }
-    }
+    fun observeFinishedMatches(): Flow<List<MatchRecord>> =
+        matchDao.observeFinishedMatches().map { matches -> matches.map { it.toDomain() } }
 
     suspend fun seedIfNeeded() {
         if (teamDao.countTeams() > 0) return
@@ -138,7 +130,7 @@ class FootballRepository(
         )
     }
 
-    suspend fun removePlayer(teamId: Int, playerId: Int) {
+    suspend fun removePlayer(playerId: Int) {
         teamDao.deletePlayer(playerId)
     }
 
@@ -196,65 +188,32 @@ class FootballRepository(
         }
     }
 
+    private fun buildMatchPlayers(
+        matchId: Int,
+        role: String,
+        players: List<Player>
+    ): List<MatchPlayerEntity> {
+        return players
+            .sortedBy { it.number }
+            .map { player ->
+                MatchPlayerEntity(
+                    matchId = matchId,
+                    playerId = player.id,
+                    role = role,
+                    playerNameSnapshot = player.name,
+                    playerNumberSnapshot = player.number
+                )
+            }
+    }
+
     suspend fun saveLineup(match: MatchRecord) {
         matchDao.deleteMatchPlayersByMatchId(match.id)
 
         val players = buildList {
-            addAll(
-                match.starters
-                    .sortedBy { it.number }
-                    .map { player ->
-                        MatchPlayerEntity(
-                            matchId = match.id,
-                            playerId = player.id,
-                            role = "STARTER",
-                            playerNameSnapshot = player.name,
-                            playerNumberSnapshot = player.number
-                        )
-                    }
-            )
-
-            addAll(
-                match.substitutes
-                    .sortedBy { it.number }
-                    .map { player ->
-                        MatchPlayerEntity(
-                            matchId = match.id,
-                            playerId = player.id,
-                            role = "SUBSTITUTE",
-                            playerNameSnapshot = player.name,
-                            playerNumberSnapshot = player.number
-                        )
-                    }
-            )
-
-            addAll(
-                match.expelledPlayers
-                    .sortedBy { it.number }
-                    .map { player ->
-                        MatchPlayerEntity(
-                            matchId = match.id,
-                            playerId = player.id,
-                            role = "EXPELLED",
-                            playerNameSnapshot = player.name,
-                            playerNumberSnapshot = player.number
-                        )
-                    }
-            )
-
-            addAll(
-                match.injuredPlayers
-                    .sortedBy { it.number }
-                    .map { player ->
-                        MatchPlayerEntity(
-                            matchId = match.id,
-                            playerId = player.id,
-                            role = "INJURED",
-                            playerNameSnapshot = player.name,
-                            playerNumberSnapshot = player.number
-                        )
-                    }
-            )
+            addAll(buildMatchPlayers(match.id, "STARTER", match.starters))
+            addAll(buildMatchPlayers(match.id, "SUBSTITUTE", match.substitutes))
+            addAll(buildMatchPlayers(match.id, "EXPELLED", match.expelledPlayers))
+            addAll(buildMatchPlayers(match.id, "INJURED", match.injuredPlayers))
         }
 
         if (players.isNotEmpty()) {
