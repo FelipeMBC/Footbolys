@@ -11,12 +11,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -67,6 +71,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.navigation.NavHostController
 import com.fmarquez.footboly.modelos.Player
 import com.fmarquez.footboly.navigation.Screen
@@ -448,23 +453,32 @@ fun MatchConfigScreen(
     }
 
     if (showSetupDialog) {
-        AlertDialog(
-            onDismissRequest = { showSetupDialog = false },
-            containerColor = SurfaceColor,
-            shape = RoundedCornerShape(20.dp),
-            title = {
-                Text(
-                    "Configurar partido",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp,
-                    color = TextPrimary
-                )
-            },
-            text = {
+        Dialog(
+            onDismissRequest = { showSetupDialog = false }
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding()
+                    .windowInsetsPadding(WindowInsets.navigationBars),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
                 Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 20.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    Text(
+                        text = "Configurar partido",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        color = TextPrimary
+                    )
+
                     OutlinedTextField(
                         value = rivalName,
                         onValueChange = { rivalName = it },
@@ -622,24 +636,27 @@ fun MatchConfigScreen(
                             )
                         )
                     }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSetupDialog = false }) {
-                    Text("Cancelar", color = TextSecondary)
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showSetupDialog = false
-                        confirmStart()
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showSetupDialog = false }) {
+                            Text("Cancelar", color = TextSecondary)
+                        }
+
+                        TextButton(
+                            onClick = {
+                                showSetupDialog = false
+                                confirmStart()
+                            }
+                        ) {
+                            Text("Iniciar", color = teamColor, fontWeight = FontWeight.SemiBold)
+                        }
                     }
-                ) {
-                    Text("Iniciar", color = teamColor, fontWeight = FontWeight.SemiBold)
                 }
             }
-        )
+        }
     }
 }
 

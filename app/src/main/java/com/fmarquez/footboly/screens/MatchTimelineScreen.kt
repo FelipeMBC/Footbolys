@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -115,6 +116,18 @@ private fun normalizeEventType(type: String): String {
     }
 }
 
+private fun expandEventsForTimeline(events: List<MatchEvent>): List<MatchEvent> {
+    return events.flatMap { event ->
+        val count = parseEventCount(event.detail).coerceAtLeast(1)
+
+        List(count) {
+            event.copy(
+                detail = ""
+            )
+        }
+    }
+}
+
 private fun playerCardCounts(
     playerId: Int,
     events: List<MatchEvent>
@@ -159,6 +172,10 @@ private fun teamGoals(match: MatchRecord): Int {
     return match.events
         .filter { it.type == "Gol a Favor" }
         .sumOf { parseEventCount(it.detail) }
+}
+
+private fun totalExpandedEvents(match: MatchRecord): Int {
+    return match.events.sumOf { parseEventCount(it.detail) }
 }
 
 private fun matchHistorySubtitle(match: MatchRecord): String {
@@ -584,7 +601,7 @@ fun MatchHistoryList(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = "Eventos: ${match.events.size}",
+                                    text = "Eventos: ${totalExpandedEvents(match)}",
                                     fontSize = 12.sp,
                                     color = matchColor,
                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
@@ -653,6 +670,7 @@ fun MatchDetailContent(
 
     val teamColor = hexToColor(match.shirtColorHex)
     val teamColorLight = teamColorLight(teamColor)
+    val expandedTimelineEvents = remember(match.events) { expandEventsForTimeline(match.events) }
 
     LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -772,7 +790,7 @@ fun MatchDetailContent(
                     Column(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        SummaryRow("Cantidad Eventos", "${match.events.size}", teamColor)
+                        SummaryRow("Cantidad Eventos", "${expandedTimelineEvents.size}", teamColor)
                         SummaryRowWithIcon(
                             label = "Fecha y Hora",
                             value = dateTimeLabel,
@@ -923,10 +941,15 @@ fun MatchDetailContent(
             Text("Línea de tiempo", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
         }
 
-        if (match.events.isEmpty()) {
+        if (expandedTimelineEvents.isEmpty()) {
             item { Text("No hay eventos registrados", color = TextSecondary) }
         } else {
-            items(match.events) { event ->
+            itemsIndexed(
+                items = expandedTimelineEvents,
+                key = { index, event ->
+                    "${event.type}_${event.playerId}_${event.playerName}_${event.timestampLabel}_${event.minute}_$index"
+                }
+            ) { _, event ->
                 MatchEventReportCard(
                     title = formatEventTitle(event.type, event.detail),
                     timeLabel = event.timestampLabel,
@@ -1255,8 +1278,7 @@ fun MatchEventReportCard(
 fun formatEventTitle(type: String, detail: String): String {
     val normalizedType = normalizeEventType(type)
     if (normalizedType == "Cambio") return "Cambio"
-    val count = detail.substringAfter(": ", "").toIntOrNull()
-    return if (count != null) "$normalizedType - $count" else normalizedType
+    return normalizedType
 }
 
 fun eventIcon(type: String, detail: String = ""): ImageVector {

@@ -998,7 +998,7 @@ private fun StatsSectionContent(
                 ) {
                     CompactFavorContraCard(
                         modifier = Modifier.weight(1f),
-                        title = "Balón recuperado o perdido",
+                        title = "Balón",
                         favorValue = draftValue(currentDraft, StatKey.BALON_RECUPERADO),
                         contraValue = draftValue(currentDraft, StatKey.BALON_PERDIDO),
                         favorAccent = teamColor,
@@ -1006,7 +1006,7 @@ private fun StatsSectionContent(
                         contraAccent = ErrorRed,
                         contraLight = ErrorRedLight,
                         leftLabel = "Perdido",
-                        rightLabel = "Recuperado",
+                        rightLabel = "Recup.",
                         onFavorIncrease = {
                             vm.updatePlayerStatsDraft(
                                 increaseStat(
