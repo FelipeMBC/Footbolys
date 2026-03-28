@@ -136,9 +136,11 @@ fun MatchLiveScreen(
 
     val opponentGoals = match.opponentGoals
     val opponentGoalChances = match.opponentGoalChances
+    val isHalftimePaused = vm.isHalftimePaused
+    val shouldShowHalftimeDialog = vm.shouldShowHalftimeDialog
 
-    produceState(initialValue = 0, key1 = match.isStarted, key2 = match.isFinished) {
-        while (match.isStarted && !match.isFinished) {
+    produceState(initialValue = 0, key1 = match.isStarted, key2 = match.isFinished, key3 = isHalftimePaused) {
+        while (match.isStarted && !match.isFinished && !isHalftimePaused) {
             delay(1000)
             value++
         }
@@ -197,10 +199,22 @@ fun MatchLiveScreen(
                 },
                 actions = {
                     TextButton(
-                        onClick = { showStopMatchDialog = true },
-                        colors = ButtonDefaults.textButtonColors(contentColor = ErrorRed)
+                        onClick = {
+                            if (isHalftimePaused) {
+                                vm.resumeMatchAfterHalftime()
+                            } else {
+                                showStopMatchDialog = true
+                            }
+                        },
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = if (isHalftimePaused) teamColor else ErrorRed
+                        )
                     ) {
-                        Text("Finalizar", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(
+                            if (isHalftimePaused) "Reanudar" else "Finalizar",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = BgColor)
@@ -245,6 +259,39 @@ fun MatchLiveScreen(
                 color = TextSecondary,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
+
+            if (isHalftimePaused) {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, teamColor.copy(alpha = 0.18f), RoundedCornerShape(14.dp)),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.cardColors(containerColor = teamColorLight),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Primer tiempo terminado",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = teamColor
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Partido pausado · pulsa Reanudar para continuar",
+                            fontSize = 12.sp,
+                            color = TextSecondary
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -468,6 +515,25 @@ fun MatchLiveScreen(
             dismissButton = {
                 TextButton(onClick = { showOpponentEventDialog = false }) {
                     Text("Cancelar", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    if (shouldShowHalftimeDialog) {
+        AlertDialog(
+            onDismissRequest = { vm.dismissHalftimeDialog() },
+            containerColor = SurfaceColor,
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text("Entretiempo", fontWeight = FontWeight.Bold, color = TextPrimary)
+            },
+            text = {
+                Text("¡Primer tiempo terminado, partido pausado!", color = TextSecondary)
+            },
+            confirmButton = {
+                TextButton(onClick = { vm.dismissHalftimeDialog() }) {
+                    Text("Entendido", color = teamColor, fontWeight = FontWeight.SemiBold)
                 }
             }
         )

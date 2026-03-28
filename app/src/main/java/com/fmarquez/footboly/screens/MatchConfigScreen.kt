@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -122,7 +123,8 @@ fun MatchConfigScreen(
     var showLessThanElevenDialog by remember { mutableStateOf(false) }
 
     var rivalName by remember { mutableStateOf("") }
-    var matchDurationMinutes by remember { mutableFloatStateOf(60f) }
+    var selectedDurationSeconds by remember { mutableIntStateOf(30) }
+    val durationOptions = listOf(30, 30 * 60, 90 * 60)
 
     val nowCal = remember { Calendar.getInstance() }
     var selYear by remember { mutableIntStateOf(nowCal.get(Calendar.YEAR)) }
@@ -144,7 +146,10 @@ fun MatchConfigScreen(
 
     fun openSetupDialog() {
         rivalName = match.rivalName
-        matchDurationMinutes = ((match.totalSeconds / 60).coerceIn(10, 90)).toFloat()
+        selectedDurationSeconds = when (match.totalSeconds) {
+            30, 30 * 60, 90 * 60 -> match.totalSeconds
+            else -> 30
+        }
         showSetupDialog = true
     }
 
@@ -156,7 +161,7 @@ fun MatchConfigScreen(
         }
 
         vm.setMatchRivalAndDate(rivalName.trim(), dateLabel)
-        vm.setMatchDuration(matchDurationMinutes.toInt())
+        vm.setMatchDurationSeconds(selectedDurationSeconds)
         vm.startMatch()
 
         navHostController.navigate(Screen.MATCH_LIVE.route) {
@@ -601,7 +606,7 @@ fun MatchConfigScreen(
                         }
                     }
 
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             "Duración del partido",
                             fontSize = 13.sp,
@@ -617,24 +622,38 @@ fun MatchConfigScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "${matchDurationMinutes.toInt()} min",
+                                text = when (selectedDurationSeconds) {
+                                    30 -> "30 seg"
+                                    else -> "${selectedDurationSeconds / 60} min"
+                                },
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 28.sp,
                                 color = teamColor
                             )
                         }
-                        Text("Entre 10 y 90 minutos", fontSize = 11.sp, color = TextSecondary)
-                        Slider(
-                            value = matchDurationMinutes,
-                            onValueChange = { matchDurationMinutes = it },
-                            valueRange = 10f..90f,
-                            steps = 79,
-                            colors = SliderDefaults.colors(
-                                thumbColor = teamColor,
-                                activeTrackColor = teamColor,
-                                inactiveTrackColor = BorderColor
-                            )
+                        Text(
+                            "Se pausará automáticamente al terminar el primer tiempo",
+                            fontSize = 11.sp,
+                            color = TextSecondary
                         )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            durationOptions.forEach { durationSeconds ->
+                                MatchDurationPresetButton(
+                                    modifier = Modifier.weight(1f),
+                                    label = when (durationSeconds) {
+                                        30 -> "30 seg"
+                                        else -> "${durationSeconds / 60} min"
+                                    },
+                                    selected = selectedDurationSeconds == durationSeconds,
+                                    accentColor = teamColor,
+                                    accentLight = teamColorLight,
+                                    onClick = { selectedDurationSeconds = durationSeconds }
+                                )
+                            }
+                        }
                     }
 
                     Row(
@@ -657,6 +676,34 @@ fun MatchConfigScreen(
                 }
             }
         }
+    }
+}
+
+
+@Composable
+private fun MatchDurationPresetButton(
+    modifier: Modifier = Modifier,
+    label: String,
+    selected: Boolean,
+    accentColor: Color,
+    accentLight: Color,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(44.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (selected) accentColor else SurfaceColor,
+            contentColor = if (selected) Color.White else accentColor
+        ),
+        elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 

@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -72,6 +73,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
@@ -675,7 +677,7 @@ fun MatchDetailContent(
     LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             val teamGoalsValue = teamGoals(match)
-            val rivalNameLabel = match.rivalName.ifBlank { "Equipo Rival" }
+            val rivalNameLabel = match.rivalName.ifBlank { "Equipo Visita" }
             val dateTimeLabel = match.matchDateLabel.ifBlank {
                 match.finishedAtLabel.ifBlank { "Sin fecha" }
             }
@@ -718,71 +720,92 @@ fun MatchDetailContent(
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
                     ) {
-                        Row(
+                        BoxWithConstraints(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 18.dp, vertical = 18.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                                .padding(horizontal = 18.dp, vertical = 18.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                horizontalAlignment = Alignment.Start
-                            ) {
-                                Text(
-                                    text = match.teamName,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    text = "Local",
-                                    fontSize = 12.sp,
-                                    color = TextSecondary
-                                )
-                            }
+                            val compact = maxWidth < 330.dp
+                            val teamNameFont = if (compact) 11.sp else 15.sp
+                            val roleFont = if (compact) 11.sp else 12.sp
+                            val scoreFont = if (compact) 24.sp else 28.sp
+                            val dashFont = if (compact) 18.sp else 20.sp
+                            val scoreSpacing = if (compact) 6.dp else 10.dp
+                            val sidePadding = if (compact) 4.dp else 0.dp
 
                             Row(
+                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(
-                                    text = teamGoalsValue.toString(),
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                    fontSize = 28.sp,
-                                    color = teamColor
-                                )
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = sidePadding),
+                                    horizontalAlignment = Alignment.Start
+                                ) {
+                                    Text(
+                                        text = match.teamName,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                        fontSize = teamNameFont,
+                                        color = TextPrimary,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "Local",
+                                        fontSize = roleFont,
+                                        color = TextSecondary
+                                    )
+                                }
 
-                                Text(
-                                    text = "-",
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                                    fontSize = 20.sp,
-                                    color = TextSecondary
-                                )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(scoreSpacing)
+                                ) {
+                                    Text(
+                                        text = teamGoalsValue.toString(),
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                        fontSize = scoreFont,
+                                        color = teamColor
+                                    )
 
-                                Text(
-                                    text = match.opponentGoals.toString(),
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                    fontSize = 28.sp,
-                                    color = TextPrimary
-                                )
-                            }
+                                    Text(
+                                        text = "-",
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                        fontSize = dashFont,
+                                        color = TextSecondary
+                                    )
 
-                            Column(
-                                modifier = Modifier.weight(1f),
-                                horizontalAlignment = Alignment.End
-                            ) {
-                                Text(
-                                    text = rivalNameLabel,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = TextPrimary
-                                )
-                                Text(
-                                    text = "Rival",
-                                    fontSize = 12.sp,
-                                    color = TextSecondary
-                                )
+                                    Text(
+                                        text = match.opponentGoals.toString(),
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                        fontSize = scoreFont,
+                                        color = TextPrimary
+                                    )
+                                }
+
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(start = sidePadding),
+                                    horizontalAlignment = Alignment.End
+                                ) {
+                                    Text(
+                                        text = rivalNameLabel,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                        fontSize = teamNameFont,
+                                        color = TextPrimary,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "Visita",
+                                        fontSize = roleFont,
+                                        color = TextSecondary
+                                    )
+                                }
                             }
                         }
                     }
@@ -844,12 +867,16 @@ fun MatchDetailContent(
             item { Text("No hubo titulares registrados", color = TextSecondary) }
         } else {
             items(starters, key = { it.id }) { player ->
+                val (yellowCards, redCards) = playerCardCounts(player.id, match.events)
+
                 SavedMatchPlayerRow(
                     player = player,
                     role = "Titular",
                     playedTime = vm.getFormattedPlayerTime(player.id, match),
                     teamColor = teamColor,
                     teamColorLight = teamColorLight,
+                    yellowCards = yellowCards,
+                    redCards = redCards,
                     onEditPlayerStats = { onEditPlayerStats(player) }
                 )
             }
@@ -926,12 +953,16 @@ fun MatchDetailContent(
             item { Text("No hubo reservas registradas", color = TextSecondary) }
         } else {
             items(substitutes, key = { it.id }) { player ->
+                val (yellowCards, redCards) = playerCardCounts(player.id, match.events)
+
                 SavedMatchPlayerRow(
                     player = player,
                     role = "Reserva",
                     playedTime = vm.getFormattedPlayerTime(player.id, match),
                     teamColor = teamColor,
                     teamColorLight = teamColorLight,
+                    yellowCards = yellowCards,
+                    redCards = redCards,
                     onEditPlayerStats = { onEditPlayerStats(player) }
                 )
             }
@@ -972,6 +1003,8 @@ private fun SavedMatchPlayerRow(
     playedTime: String,
     teamColor: Color,
     teamColorLight: Color,
+    yellowCards: Int = 0,
+    redCards: Int = 0,
     onEditPlayerStats: () -> Unit
 ) {
     Card(
@@ -982,42 +1015,133 @@ private fun SavedMatchPlayerRow(
         colors = CardDefaults.cardColors(containerColor = SurfaceColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Row(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .background(if (role == "Titular") teamColorLight else Color(0xFFF5F5F5), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = player.number.toString(),
-                    fontSize = 13.sp,
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                    color = if (role == "Titular") teamColor else TextSecondary
-                )
-            }
+            val compact = maxWidth < 330.dp
 
-            Spacer(modifier = Modifier.width(12.dp))
+            if (compact) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(
+                                    if (role == "Titular") teamColorLight else Color(0xFFF5F5F5),
+                                    CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = player.number.toString(),
+                                fontSize = 13.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                color = if (role == "Titular") teamColor else TextSecondary
+                            )
+                        }
 
-            Column(modifier = Modifier.weight(1f)) {
-                Text(player.name, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
-                Text("$role · N° ${player.number} · $playedTime", fontSize = 12.sp, color = TextSecondary)
-            }
+                        Spacer(modifier = Modifier.width(12.dp))
 
-            OutlinedButton(
-                onClick = onEditPlayerStats,
-                shape = RoundedCornerShape(10.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
-            ) {
-                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Editar", fontSize = 13.sp)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = player.name,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                fontSize = 15.sp,
+                                color = TextPrimary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "$role · N° ${player.number} · $playedTime",
+                                fontSize = 12.sp,
+                                color = TextSecondary,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            if (yellowCards > 0 || redCards > 0) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                PlayerCardBadges(
+                                    yellowCards = yellowCards,
+                                    redCards = redCards
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = onEditPlayerStats,
+                        modifier = Modifier.align(Alignment.End),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Editar", fontSize = 13.sp)
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(
+                                if (role == "Titular") teamColorLight else Color(0xFFF5F5F5),
+                                CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = player.number.toString(),
+                            fontSize = 13.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                            color = if (role == "Titular") teamColor else TextSecondary
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = player.name,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            fontSize = 15.sp,
+                            color = TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "$role · N° ${player.number} · $playedTime",
+                            fontSize = 12.sp,
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = onEditPlayerStats,
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Editar", fontSize = 13.sp)
+                    }
+                }
             }
         }
     }
@@ -1172,25 +1296,120 @@ private fun SummaryRow(label: String, value: String, teamColor: Color) {
     }
 }
 
+private fun extractDatePart(dateTimeLabel: String): String {
+    return dateTimeLabel.substringBefore("·").trim().ifBlank { "Sin fecha" }
+}
+
+private fun extractTimePart(dateTimeLabel: String): String {
+    return dateTimeLabel.substringAfter("·", "").trim()
+}
+
 @Composable
 private fun SummaryRowWithIcon(label: String, value: String, teamColor: Color) {
-    Row(
+    val datePart = extractDatePart(value)
+    val timePart = extractTimePart(value)
+
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 2.dp)
     ) {
-        Text(label, fontSize = 13.sp, color = teamColor.copy(alpha = 0.7f))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Default.CalendarMonth,
-                contentDescription = null,
-                tint = teamColor,
-                modifier = Modifier.size(13.dp)
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(value, fontSize = 13.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = teamColor)
+        val compact = maxWidth < 330.dp
+
+        if (compact) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = label,
+                    fontSize = 13.sp,
+                    color = teamColor.copy(alpha = 0.7f)
+                )
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.CalendarMonth,
+                        contentDescription = null,
+                        tint = teamColor,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = datePart,
+                        fontSize = 13.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                        color = teamColor
+                    )
+                }
+
+                if (timePart.isNotBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.AccessTime,
+                            contentDescription = null,
+                            tint = teamColor,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = timePart,
+                            fontSize = 13.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            color = teamColor
+                        )
+                    }
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Text(
+                    text = label,
+                    fontSize = 13.sp,
+                    color = teamColor.copy(alpha = 0.7f)
+                )
+
+                Column(horizontalAlignment = Alignment.End) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.CalendarMonth,
+                            contentDescription = null,
+                            tint = teamColor,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = datePart,
+                            fontSize = 13.sp,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            color = teamColor
+                        )
+                    }
+
+                    if (timePart.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.AccessTime,
+                                contentDescription = null,
+                                tint = teamColor,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = timePart,
+                                fontSize = 13.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                color = teamColor
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

@@ -65,6 +65,12 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
 
     private var matchTimerJob: Job? = null
 
+    var isHalftimePaused by mutableStateOf(false)
+        private set
+
+    var shouldShowHalftimeDialog by mutableStateOf(false)
+        private set
+
     private val playerStatsDrafts = mutableStateMapOf<String, PlayerStatsDraft>()
     private val originalPlayerStatsDrafts = mutableStateMapOf<String, PlayerStatsDraft>()
 
@@ -104,6 +110,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
                 if (editingFinishedMatch?.id == loadedMatch?.id) {
                     editingFinishedMatch = loadedMatch
                 }
+
+                syncHalftimeStateWithMatch(loadedMatch)
             }
         }
 
@@ -273,13 +281,13 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
                 "Gol en Contra" -> draft.copy(golContra = draft.golContra + count)
                 "Tiro al Arco +" -> draft.copy(tiroAlArcoPositivo = draft.tiroAlArcoPositivo + count)
                 "Tiro al Arco -" -> draft.copy(tiroAlArcoNegativo = draft.tiroAlArcoNegativo + count)
-                "Participación de Gol a Favor" -> draft.copy(participacionGolFavor = draft.participacionGolFavor + count)
-                "Participación de Gol en Contra" -> draft.copy(participacionGolContra = draft.participacionGolContra + count)
+                "Asistencia a favor" -> draft.copy(participacionGolFavor = draft.participacionGolFavor + count)
+                "Asistencia en contra" -> draft.copy(participacionGolContra = draft.participacionGolContra + count)
                 "Remate 1/2 +" -> draft.copy(remate12Positivo = draft.remate12Positivo + count)
                 "Remate 1/2 -" -> draft.copy(remate12Negativo = draft.remate12Negativo + count)
 
-                "Balón Recogido a Favor" -> draft.copy(balonRecogidoFavor = draft.balonRecogidoFavor + count)
-                "Balón Recogido en Contra" -> draft.copy(balonRecogidoContra = draft.balonRecogidoContra + count)
+                "Balón Recup." -> draft.copy(balonRecogidoFavor = draft.balonRecogidoFavor + count)
+                "Balón Perdido" -> draft.copy(balonRecogidoContra = draft.balonRecogidoContra + count)
                 "Pases Buenos" -> draft.copy(pasesBuenos = draft.pasesBuenos + count)
                 "Pases Malos" -> draft.copy(pasesMalos = draft.pasesMalos + count)
                 "Centros +" -> draft.copy(centrosPositivos = draft.centrosPositivos + count)
@@ -377,8 +385,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         addIfNeeded("Gol en Contra", draft.golContra)
         addIfNeeded("Tiro al Arco +", draft.tiroAlArcoPositivo)
         addIfNeeded("Tiro al Arco -", draft.tiroAlArcoNegativo)
-        addIfNeeded("Participación de Gol a Favor", draft.participacionGolFavor)
-        addIfNeeded("Participación de Gol en Contra", draft.participacionGolContra)
+        addIfNeeded("Asistencia a favor", draft.participacionGolFavor)
+        addIfNeeded("Asistencia en contra", draft.participacionGolContra)
         addIfNeeded("Remate 1/2 +", draft.remate12Positivo)
         addIfNeeded("Remate 1/2 -", draft.remate12Negativo)
 
@@ -429,8 +437,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         compare("Gol en Contra", original.golContra, updated.golContra)
         compare("Tiro al Arco +", original.tiroAlArcoPositivo, updated.tiroAlArcoPositivo)
         compare("Tiro al Arco -", original.tiroAlArcoNegativo, updated.tiroAlArcoNegativo)
-        compare("Participación de Gol a Favor", original.participacionGolFavor, updated.participacionGolFavor)
-        compare("Participación de Gol en Contra", original.participacionGolContra, updated.participacionGolContra)
+        compare("Asistencia a favor", original.participacionGolFavor, updated.participacionGolFavor)
+        compare("Asistencia en contra", original.participacionGolContra, updated.participacionGolContra)
         compare("Remate 1/2 +", original.remate12Positivo, updated.remate12Positivo)
         compare("Remate 1/2 -", original.remate12Negativo, updated.remate12Negativo)
 
@@ -559,8 +567,8 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         addChange("Gol en Contra", draft.golContra)
         addChange("Tiro al Arco +", draft.tiroAlArcoPositivo)
         addChange("Tiro al Arco -", draft.tiroAlArcoNegativo)
-        addChange("Participación de Gol a Favor", draft.participacionGolFavor)
-        addChange("Participación de Gol en Contra", draft.participacionGolContra)
+        addChange("Asistencia a favor", draft.participacionGolFavor)
+        addChange("Asistencia en contra", draft.participacionGolContra)
         addChange("Remate 1/2 +", draft.remate12Positivo)
         addChange("Remate 1/2 -", draft.remate12Negativo)
 
@@ -601,14 +609,52 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         playerStatsDrafts[key] = updatedDraft
     }
 
-    fun setMatchDuration(minutes: Int) {
+
+    private fun getHalftimePoint(match: MatchRecord): Int {
+        return (match.totalSeconds / 2).coerceAtLeast(1)
+    }
+
+    private fun resetHalftimeUiState() {
+        isHalftimePaused = false
+        shouldShowHalftimeDialog = false
+    }
+
+    private fun syncHalftimeStateWithMatch(match: MatchRecord?) {
+        if (match == null || !match.isStarted || match.isFinished) {
+            resetHalftimeUiState()
+            return
+        }
+
+        val halftimePoint = getHalftimePoint(match)
+        isHalftimePaused = match.remainingSeconds == halftimePoint && match.remainingSeconds != match.totalSeconds
+    }
+
+    fun dismissHalftimeDialog() {
+        shouldShowHalftimeDialog = false
+    }
+
+    fun resumeMatchAfterHalftime() {
         val match = currentMatch ?: return
+        if (!match.isStarted || match.isFinished || !isHalftimePaused) return
+
+        isHalftimePaused = false
+        shouldShowHalftimeDialog = false
+    }
+
+    fun setMatchDuration(minutes: Int) {
         val safeMinutes = minutes.coerceIn(10, 90)
+        setMatchDurationSeconds(safeMinutes * 60)
+    }
+
+    fun setMatchDurationSeconds(totalSeconds: Int) {
+        val match = currentMatch ?: return
+        val safeTotalSeconds = totalSeconds.coerceAtLeast(30)
         val updatedMatch = match.copy(
-            totalSeconds = safeMinutes * 60,
-            remainingSeconds = safeMinutes * 60
+            totalSeconds = safeTotalSeconds,
+            remainingSeconds = safeTotalSeconds
         )
         currentMatch = updatedMatch
+        resetHalftimeUiState()
         viewModelScope.launch { repository.updateMatch(updatedMatch) }
     }
 
@@ -803,6 +849,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         selectedFinishedMatch = null
         selectedPlayerId = null
         matchTimerJob?.cancel()
+        resetHalftimeUiState()
         viewModelScope.launch {
             val newMatch = repository.createNewMatch(team)
             currentMatch = newMatch
@@ -921,6 +968,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     fun stopMatch() {
         val match = currentMatch ?: return
         matchTimerJob?.cancel()
+        resetHalftimeUiState()
 
         val finalizedPlayerTimes = finalizePlayingTimes(match)
 
@@ -1054,6 +1102,7 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
         val match = currentMatch ?: return
         if (match.isStarted || match.isFinished) return
         clearEditingFinishedMatch()
+        resetHalftimeUiState()
 
         val initializedTimes = initializePlayerTimesForMatch(match)
 
@@ -1076,9 +1125,28 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
                 val updated = currentMatch ?: break
                 if (!updated.isStarted || updated.isFinished) break
 
+                if (isHalftimePaused) {
+                    continue
+                }
+
+                val halftimePoint = getHalftimePoint(updated)
                 val newRemaining = (updated.remainingSeconds - 1).coerceAtLeast(0)
+                val isCrossingHalftime =
+                    updated.totalSeconds > 1 &&
+                            updated.remainingSeconds > halftimePoint &&
+                            newRemaining <= halftimePoint
+
+                if (isCrossingHalftime) {
+                    val halftimeMatch = updated.copy(remainingSeconds = halftimePoint)
+                    currentMatch = halftimeMatch
+                    isHalftimePaused = true
+                    shouldShowHalftimeDialog = true
+                    repository.updateMatch(halftimeMatch)
+                    continue
+                }
 
                 if (newRemaining == 0) {
+                    resetHalftimeUiState()
                     val zeroMatch = updated.copy(remainingSeconds = 0)
                     val finalizedPlayerTimes = finalizePlayingTimes(zeroMatch)
 
@@ -1113,8 +1181,10 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     fun getFormattedMatchTime(): String {
         val match = currentMatch ?: return "00:00"
         if (match.isFinished) return "Partido terminado"
-        val minutes = match.remainingSeconds / 60
-        val seconds = match.remainingSeconds % 60
+
+        val elapsed = (match.totalSeconds - match.remainingSeconds).coerceAtLeast(0)
+        val minutes = elapsed / 60
+        val seconds = elapsed % 60
         return String.format("%02d:%02d", minutes, seconds)
     }
 

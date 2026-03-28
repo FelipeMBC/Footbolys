@@ -5,10 +5,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -63,6 +61,12 @@ import com.fmarquez.footboly.modelos.PlayerStatsDraft
 import com.fmarquez.footboly.util.hexToColor
 import com.fmarquez.footboly.util.teamColorLight
 import com.fmarquez.footboly.vm.FutbolViewModel
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.text.style.TextOverflow
+
 
 private val BgColor = Color(0xFFF7F7F5)
 private val SurfaceColor = Color(0xFFFFFFFF)
@@ -886,7 +890,7 @@ private fun StatsSectionContent(
 
                     CompactFavorContraCard(
                         modifier = Modifier.weight(1f),
-                        title = "Participación Gol",
+                        title = "Asistencia",
                         favorValue = draftValue(currentDraft, StatKey.PART_GOL_FAVOR),
                         contraValue = draftValue(currentDraft, StatKey.PART_GOL_CONTRA),
                         favorAccent = teamColor,
@@ -1153,13 +1157,18 @@ private fun StatsSectionContent(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    CompactSingleCounterCard(
+                    CompactFavorContraCard(
                         modifier = Modifier.weight(1f),
                         title = "Penal",
-                        value = draftValue(currentDraft, StatKey.PENAL_FAVOR),
-                        accentColor = teamColor,
-                        lightColor = teamColorLight,
-                        onIncrease = {
+                        favorValue = draftValue(currentDraft, StatKey.PENAL_FAVOR),
+                        contraValue = draftValue(currentDraft, StatKey.PENAL_CONTRA),
+                        favorAccent = teamColor,
+                        favorLight = teamColorLight,
+                        contraAccent = ErrorRed,
+                        contraLight = ErrorRedLight,
+                        leftLabel = "Contra",
+                        rightLabel = "Favor",
+                        onFavorIncrease = {
                             vm.updatePlayerStatsDraft(
                                 increaseStat(
                                     vm.getOrCreatePlayerStatsDraft(player.id),
@@ -1167,23 +1176,44 @@ private fun StatsSectionContent(
                                 )
                             )
                         },
-                        onDecrease = {
+                        onFavorDecrease = {
                             vm.updatePlayerStatsDraft(
                                 decreaseStat(
                                     vm.getOrCreatePlayerStatsDraft(player.id),
                                     StatKey.PENAL_FAVOR
+                                )
+                            )
+                        },
+                        onContraIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.PENAL_CONTRA
+                                )
+                            )
+                        },
+                        onContraDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.PENAL_CONTRA
                                 )
                             )
                         }
                     )
 
-                    CompactSingleCounterCard(
+                    CompactFavorContraCard(
                         modifier = Modifier.weight(1f),
                         title = "Tiro libre",
-                        value = draftValue(currentDraft, StatKey.TIRO_LIBRE_FAVOR),
-                        accentColor = teamColor,
-                        lightColor = teamColorLight,
-                        onIncrease = {
+                        favorValue = draftValue(currentDraft, StatKey.TIRO_LIBRE_FAVOR),
+                        contraValue = draftValue(currentDraft, StatKey.TIRO_LIBRE_CONTRA),
+                        favorAccent = teamColor,
+                        favorLight = teamColorLight,
+                        contraAccent = ErrorRed,
+                        contraLight = ErrorRedLight,
+                        leftLabel = "Contra",
+                        rightLabel = "Favor",
+                        onFavorIncrease = {
                             vm.updatePlayerStatsDraft(
                                 increaseStat(
                                     vm.getOrCreatePlayerStatsDraft(player.id),
@@ -1191,11 +1221,27 @@ private fun StatsSectionContent(
                                 )
                             )
                         },
-                        onDecrease = {
+                        onFavorDecrease = {
                             vm.updatePlayerStatsDraft(
                                 decreaseStat(
                                     vm.getOrCreatePlayerStatsDraft(player.id),
                                     StatKey.TIRO_LIBRE_FAVOR
+                                )
+                            )
+                        },
+                        onContraIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.TIRO_LIBRE_CONTRA
+                                )
+                            )
+                        },
+                        onContraDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.TIRO_LIBRE_CONTRA
                                 )
                             )
                         }
@@ -1206,13 +1252,18 @@ private fun StatsSectionContent(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    CompactSingleCounterCard(
+                    CompactFavorContraCard(
                         modifier = Modifier.weight(1f),
                         title = "Corner",
-                        value = draftValue(currentDraft, StatKey.CORNER_POS),
-                        accentColor = teamColor,
-                        lightColor = teamColorLight,
-                        onIncrease = {
+                        favorValue = draftValue(currentDraft, StatKey.CORNER_POS),
+                        contraValue = draftValue(currentDraft, StatKey.CORNER_NEG),
+                        favorAccent = teamColor,
+                        favorLight = teamColorLight,
+                        contraAccent = ErrorRed,
+                        contraLight = ErrorRedLight,
+                        leftLabel = "Contra",
+                        rightLabel = "Favor",
+                        onFavorIncrease = {
                             vm.updatePlayerStatsDraft(
                                 increaseStat(
                                     vm.getOrCreatePlayerStatsDraft(player.id),
@@ -1220,23 +1271,44 @@ private fun StatsSectionContent(
                                 )
                             )
                         },
-                        onDecrease = {
+                        onFavorDecrease = {
                             vm.updatePlayerStatsDraft(
                                 decreaseStat(
                                     vm.getOrCreatePlayerStatsDraft(player.id),
                                     StatKey.CORNER_POS
+                                )
+                            )
+                        },
+                        onContraIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.CORNER_NEG
+                                )
+                            )
+                        },
+                        onContraDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.CORNER_NEG
                                 )
                             )
                         }
                     )
 
-                    CompactSingleCounterCard(
+                    CompactFavorContraCard(
                         modifier = Modifier.weight(1f),
                         title = "Falta",
-                        value = draftValue(currentDraft, StatKey.FALTA_FAVOR),
-                        accentColor = teamColor,
-                        lightColor = teamColorLight,
-                        onIncrease = {
+                        favorValue = draftValue(currentDraft, StatKey.FALTA_FAVOR),
+                        contraValue = draftValue(currentDraft, StatKey.FALTA_CONTRA),
+                        favorAccent = teamColor,
+                        favorLight = teamColorLight,
+                        contraAccent = ErrorRed,
+                        contraLight = ErrorRedLight,
+                        leftLabel = "Contra",
+                        rightLabel = "Favor",
+                        onFavorIncrease = {
                             vm.updatePlayerStatsDraft(
                                 increaseStat(
                                     vm.getOrCreatePlayerStatsDraft(player.id),
@@ -1244,11 +1316,27 @@ private fun StatsSectionContent(
                                 )
                             )
                         },
-                        onDecrease = {
+                        onFavorDecrease = {
                             vm.updatePlayerStatsDraft(
                                 decreaseStat(
                                     vm.getOrCreatePlayerStatsDraft(player.id),
                                     StatKey.FALTA_FAVOR
+                                )
+                            )
+                        },
+                        onContraIncrease = {
+                            vm.updatePlayerStatsDraft(
+                                increaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.FALTA_CONTRA
+                                )
+                            )
+                        },
+                        onContraDecrease = {
+                            vm.updatePlayerStatsDraft(
+                                decreaseStat(
+                                    vm.getOrCreatePlayerStatsDraft(player.id),
+                                    StatKey.FALTA_CONTRA
                                 )
                             )
                         }
@@ -1269,53 +1357,74 @@ private fun CompactSingleCounterCard(
     onIncrease: () -> Unit,
     onDecrease: () -> Unit
 ) {
-    Card(
-        modifier = modifier
-            .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(
+    BoxWithConstraints(modifier = modifier) {
+        val compact = maxWidth < 170.dp
+        val titleFont = if (compact) 12.sp else 14.sp
+        val valueFont = if (compact) 18.sp else 22.sp
+        val titleMinHeight = if (compact) 36.dp else 44.dp
+        val buttonSpacing = if (compact) 4.dp else 6.dp
+
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            Text(
-                text = title,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = TextPrimary
-            )
-
-            Text(
-                text = value.toString(),
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                CompactActionButton(
-                    text = "−",
-                    accentColor = accentColor,
-                    lightColor = lightColor,
-                    onClick = onDecrease
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = titleMinHeight),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = title,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = titleFont,
+                        lineHeight = if (compact) 14.sp else 18.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        color = TextPrimary
+                    )
+                }
+
+                Text(
+                    text = value.toString(),
+                    fontSize = valueFont,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
                 )
 
-                CompactActionButton(
-                    text = "+",
-                    accentColor = accentColor,
-                    lightColor = lightColor,
-                    onClick = onIncrease
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(buttonSpacing),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CompactActionButton(
+                        text = "−",
+                        accentColor = accentColor,
+                        lightColor = lightColor,
+                        compact = compact,
+                        onClick = onDecrease
+                    )
+
+                    CompactActionButton(
+                        text = "+",
+                        accentColor = accentColor,
+                        lightColor = lightColor,
+                        compact = compact,
+                        onClick = onIncrease
+                    )
+                }
             }
         }
     }
@@ -1395,51 +1504,71 @@ private fun CompactFavorContraCard(
     onContraIncrease: () -> Unit,
     onContraDecrease: () -> Unit
 ) {
-    Card(
-        modifier = modifier
-            .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(
+    BoxWithConstraints(modifier = modifier) {
+        val compact = maxWidth < 170.dp
+        val titleFont = if (compact) 12.sp else 14.sp
+        val titleMinHeight = if (compact) 42.dp else 52.dp
+        val columnSpacing = if (compact) 6.dp else 8.dp
+
+        Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .border(1.dp, BorderColor, RoundedCornerShape(14.dp)),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            Text(
-                text = title,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = TextPrimary
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                CompactCounterColumn(
-                    modifier = Modifier.weight(1f),
-                    label = leftLabel,
-                    value = contraValue,
-                    accentColor = contraAccent,
-                    lightColor = contraLight,
-                    onIncrease = onContraIncrease,
-                    onDecrease = onContraDecrease
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = titleMinHeight),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = title,
+                        modifier = Modifier.fillMaxWidth(),
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = titleFont,
+                        lineHeight = if (compact) 14.sp else 18.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        color = TextPrimary
+                    )
+                }
 
-                CompactCounterColumn(
-                    modifier = Modifier.weight(1f),
-                    label = rightLabel,
-                    value = favorValue,
-                    accentColor = favorAccent,
-                    lightColor = favorLight,
-                    onIncrease = onFavorIncrease,
-                    onDecrease = onFavorDecrease
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(columnSpacing)
+                ) {
+                    CompactCounterColumn(
+                        modifier = Modifier.weight(1f),
+                        label = leftLabel,
+                        value = contraValue,
+                        accentColor = contraAccent,
+                        lightColor = contraLight,
+                        compact = compact,
+                        onIncrease = onContraIncrease,
+                        onDecrease = onContraDecrease
+                    )
+
+                    CompactCounterColumn(
+                        modifier = Modifier.weight(1f),
+                        label = rightLabel,
+                        value = favorValue,
+                        accentColor = favorAccent,
+                        lightColor = favorLight,
+                        compact = compact,
+                        onIncrease = onFavorIncrease,
+                        onDecrease = onFavorDecrease
+                    )
+                }
             }
         }
     }
@@ -1508,7 +1637,6 @@ private fun CompactPositiveNegativeCard(
         }
     }
 }
-
 @Composable
 private fun CompactCounterColumn(
     modifier: Modifier = Modifier,
@@ -1516,37 +1644,52 @@ private fun CompactCounterColumn(
     value: Int,
     accentColor: Color,
     lightColor: Color,
+    compact: Boolean = false,
     onIncrease: () -> Unit,
     onDecrease: () -> Unit
 ) {
+    val labelFont = if (compact) 10.sp else 12.sp
+    val valueFont = if (compact) 18.sp else 22.sp
+    val buttonSpacing = if (compact) 4.dp else 6.dp
+
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp)
     ) {
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = accentColor,
-            textAlign = TextAlign.Center
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = if (compact) 16.dp else 18.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = label,
+                fontSize = labelFont,
+                fontWeight = FontWeight.SemiBold,
+                color = accentColor,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
 
         Text(
             text = value.toString(),
-            fontSize = 22.sp,
+            fontSize = valueFont,
             fontWeight = FontWeight.Bold,
             color = TextPrimary
         )
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(buttonSpacing),
             verticalAlignment = Alignment.CenterVertically
         ) {
             CompactActionButton(
                 text = "−",
                 accentColor = accentColor,
                 lightColor = lightColor,
+                compact = compact,
                 onClick = onDecrease
             )
 
@@ -1554,6 +1697,7 @@ private fun CompactCounterColumn(
                 text = "+",
                 accentColor = accentColor,
                 lightColor = lightColor,
+                compact = compact,
                 onClick = onIncrease
             )
         }
@@ -1565,14 +1709,19 @@ private fun CompactActionButton(
     text: String,
     accentColor: Color,
     lightColor: Color,
+    compact: Boolean = false,
     onClick: () -> Unit
 ) {
+    val buttonSize = if (compact) 28.dp else 30.dp
+    val fontSize = if (compact) 14.sp else 16.sp
+    val corner = if (compact) 7.dp else 8.dp
+
     Box(
         modifier = Modifier
-            .size(30.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .size(buttonSize)
+            .clip(RoundedCornerShape(corner))
             .background(lightColor)
-            .border(1.dp, accentColor.copy(alpha = 0.30f), RoundedCornerShape(8.dp))
+            .border(1.dp, accentColor.copy(alpha = 0.30f), RoundedCornerShape(corner))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -1580,7 +1729,7 @@ private fun CompactActionButton(
             text = text,
             color = accentColor,
             fontWeight = FontWeight.Bold,
-            fontSize = 16.sp
+            fontSize = fontSize
         )
     }
 }
