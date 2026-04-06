@@ -92,7 +92,9 @@ private fun ownGoals(
 ): Int {
     return events
         .filter { event ->
-            event.type == "Gol a Favor" || event.type == "Gol $teamName"
+            event.type == "Gol a Favor" ||
+                event.type == "Gol $teamName" ||
+                event.type == "Gol de $teamName"
         }
         .sumOf { parseEventCount(it.detail) }
 }

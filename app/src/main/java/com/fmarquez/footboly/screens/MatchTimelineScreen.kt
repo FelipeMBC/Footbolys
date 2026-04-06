@@ -4,16 +4,19 @@ import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -69,6 +72,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -92,6 +96,8 @@ import com.fmarquez.footboly.vm.FutbolViewModel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 private val BgColor = Color(0xFFF7F7F5)
 private val SurfaceColor = Color(0xFFFFFFFF)
@@ -157,12 +163,14 @@ private fun actualMatchDurationText(match: MatchRecord): String {
 }
 
 private fun isTeamGoalType(type: String, match: MatchRecord?): Boolean {
-    return type == "Gol a Favor" || type == "Gol de ${currentTeamLabel(match)}"
+    val teamName = currentTeamLabel(match)
+    return type == "Gol a Favor" || type == "Gol $teamName" || type == "Gol de $teamName"
 }
 
 
 private fun isOpponentGoalType(type: String, match: MatchRecord?): Boolean {
-    return type == "Gol en Contra" || type == "Gol Rival" || type == "Gol de ${currentRivalLabel(match)}"
+    val rivalName = currentRivalLabel(match)
+    return type == "Gol en Contra" || type == "Gol Rival" || type == "Gol $rivalName" || type == "Gol de $rivalName"
 }
 
 private fun buildNarrativeLine(
@@ -288,8 +296,8 @@ private fun normalizeEventType(type: String, match: MatchRecord? = null): String
     val rivalName = currentRivalLabel(match)
 
     return when (type) {
-        "Gol a Favor" -> "Gol de $teamName"
-        "Gol en Contra", "Gol Rival" -> "Gol de $rivalName"
+        "Gol a Favor", "Gol $teamName" -> "Gol de $teamName"
+        "Gol en Contra", "Gol Rival", "Gol $rivalName" -> "Gol de $rivalName"
         "Asistencia a favor" -> "Participación Gol de $teamName"
         "Asistencia en contra" -> "Participación Gol de $rivalName"
         "Balón Recogido a Favor" -> "Balón Recuperado"
@@ -300,7 +308,7 @@ private fun normalizeEventType(type: String, match: MatchRecord? = null): String
         "Tiro Libre en Contra", "Off Side en Contra" -> "Off Side para $rivalName"
         "Penal a Favor" -> "Penal para $teamName"
         "Penal en Contra" -> "Penal para $rivalName"
-        "Oportunidad de Gol Rival" -> "Oportunidad de Gol de $rivalName"
+        "Oportunidad de Gol Rival", "Oportunidad de Gol $rivalName" -> "Oportunidad de Gol de $rivalName"
         else -> type
     }
 }
@@ -1444,31 +1452,557 @@ fun MatchDetailContent(
             }
         }
 
+
         item {
-            Text("Línea de tiempo", fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, fontSize = 16.sp, color = TextPrimary)
+            MatchInteractiveTimelineSection(
+                match = match,
+                events = expandedTimelineEvents,
+                teamColor = teamColor,
+                teamColorLight = teamColorLight
+            )
         }
 
-        if (expandedTimelineEvents.isEmpty()) {
-            item { Text("No hay eventos registrados", color = TextSecondary) }
-        } else {
-            itemsIndexed(
-                items = expandedTimelineEvents,
-                key = { index, event ->
-                    "${event.type}_${event.playerId}_${event.playerName}_${event.timestampLabel}_${event.minute}_$index"
+        item { Spacer(modifier = Modifier.height(8.dp)) }
+    }
+}
+
+private enum class TimelinePeriod(
+    val label: String,
+    val startMinute: Int,
+    val endMinute: Int
+) {
+    FIRST_HALF("Primer tiempo", 0, 45),
+    SECOND_HALF("Segundo tiempo", 45, 90),
+    FULL_MATCH("Partido completo", 0, 90);
+
+    val totalMinutes: Int
+        get() = (endMinute - startMinute).coerceAtLeast(1)
+}
+
+private data class TimelineCategoryOption(
+    val id: String,
+    val label: String
+)
+
+private data class TimelineEventPlacement(
+    val event: MatchEvent,
+    val minute: Int,
+    val lane: Int,
+    val categoryId: String
+)
+
+private fun timelineCategoryOptions(): List<TimelineCategoryOption> {
+    return listOf(
+        TimelineCategoryOption("all", "Todas"),
+        TimelineCategoryOption("goals", "Goles"),
+        TimelineCategoryOption("assists", "Asistencias"),
+        TimelineCategoryOption("shots", "Remates"),
+        TimelineCategoryOption("fouls", "Faltas"),
+        TimelineCategoryOption("cards", "Tarjetas"),
+        TimelineCategoryOption("changes", "Cambios"),
+        TimelineCategoryOption("others", "Otros")
+    )
+}
+
+private fun timelineCategoryIdForEvent(event: MatchEvent, match: MatchRecord): String {
+    val normalizedType = normalizeEventType(event.type, match)
+
+    return when {
+        normalizedType.startsWith("Gol de") -> "goals"
+        normalizedType.startsWith("Particip") -> "assists"
+        normalizedType.startsWith("Tiro al Arco") ||
+                normalizedType.startsWith("Remate 1/2") ||
+                normalizedType.startsWith("Oportunidad de Gol") -> "shots"
+
+        normalizedType == "Amarilla" ||
+                normalizedType == "Doble Amarilla" ||
+                normalizedType == "Roja" -> "cards"
+
+        normalizedType == "Cambio" -> "changes"
+        normalizedType.startsWith("Falta para") ||
+                normalizedType.startsWith("Off Side para") ||
+                normalizedType.startsWith("Penal para") ||
+                normalizedType.startsWith("Corner") -> "fouls"
+
+        else -> "others"
+    }
+}
+
+private fun timelineCategoryColor(categoryId: String, teamColor: Color): Color {
+    return when (categoryId) {
+        "goals" -> teamColor
+        "assists" -> Color(0xFF1E88E5)
+        "shots" -> Color(0xFFF57C00)
+        "fouls" -> Color(0xFF6D4C41)
+        "cards" -> Color(0xFFE53935)
+        "changes" -> Color(0xFF546E7A)
+        else -> TextSecondary
+    }
+}
+
+private fun eventBelongsToPeriod(minute: Int, period: TimelinePeriod): Boolean {
+    return when (period) {
+        TimelinePeriod.FULL_MATCH -> true
+        TimelinePeriod.FIRST_HALF -> minute <= 45
+        TimelinePeriod.SECOND_HALF -> minute >= 45
+    }
+}
+
+private fun minuteInsidePeriod(minute: Int, period: TimelinePeriod): Int {
+    val safeMinute = minute.coerceAtLeast(0)
+    return safeMinute.coerceIn(period.startMinute, period.endMinute)
+}
+
+private fun timelineTickMinutes(period: TimelinePeriod): List<Int> {
+    return when (period) {
+        TimelinePeriod.FULL_MATCH -> listOf(0, 15, 30, 45, 60, 75, 90)
+        TimelinePeriod.FIRST_HALF -> listOf(0, 15, 30, 45)
+        TimelinePeriod.SECOND_HALF -> listOf(45, 60, 75, 90)
+    }
+}
+
+private fun buildTimelinePlacements(
+    events: List<MatchEvent>,
+    match: MatchRecord,
+    categoryId: String,
+    period: TimelinePeriod,
+    zoomLevel: Float
+): List<TimelineEventPlacement> {
+    val laneLastMinute = mutableListOf<Float>()
+    val minMinuteGap = (2.4f / zoomLevel).coerceAtLeast(0.5f)
+
+    return events.asSequence()
+        .filter { eventBelongsToPeriod(it.minute, period) }
+        .map { event ->
+            val resolvedCategory = timelineCategoryIdForEvent(event, match)
+            val resolvedMinute = minuteInsidePeriod(event.minute, period)
+            Triple(event, resolvedCategory, resolvedMinute)
+        }
+        .filter { (_, resolvedCategory, _) ->
+            categoryId == "all" || resolvedCategory == categoryId
+        }
+        .sortedWith(
+            compareBy<Triple<MatchEvent, String, Int>> { it.third }
+                .thenBy { it.first.playerName.lowercase() }
+                .thenBy { it.first.type.lowercase() }
+        )
+        .map { (event, resolvedCategory, resolvedMinute) ->
+            var laneIndex = -1
+            for (index in laneLastMinute.indices) {
+                if (resolvedMinute - laneLastMinute[index] >= minMinuteGap) {
+                    laneIndex = index
+                    break
                 }
-            ) { _, event ->
-                MatchEventReportCard(
-                    title = formatEventTitle(event.type, event.detail, match),
-                    timeLabel = event.timestampLabel,
-                    playerName = event.playerName,
-                    detail = event.detail,
-                    accentColor = teamColor,
-                    accentColorLight = teamColorLight
+            }
+
+            if (laneIndex == -1) {
+                laneLastMinute.add(resolvedMinute.toFloat())
+                laneIndex = laneLastMinute.lastIndex
+            } else {
+                laneLastMinute[laneIndex] = resolvedMinute.toFloat()
+            }
+
+            TimelineEventPlacement(
+                event = event,
+                minute = resolvedMinute,
+                lane = laneIndex,
+                categoryId = resolvedCategory
+            )
+        }
+        .toList()
+}
+
+private fun timelineXOffset(
+    minute: Int,
+    period: TimelinePeriod,
+    axisStart: androidx.compose.ui.unit.Dp,
+    axisWidth: androidx.compose.ui.unit.Dp
+): androidx.compose.ui.unit.Dp {
+    val fraction = ((minute - period.startMinute).toFloat() / period.totalMinutes.toFloat()).coerceIn(0f, 1f)
+    return axisStart + axisWidth * fraction
+}
+
+@Composable
+private fun MatchInteractiveTimelineSection(
+    match: MatchRecord,
+    events: List<MatchEvent>,
+    teamColor: Color,
+    teamColorLight: Color
+) {
+    val categoryOptions = remember { timelineCategoryOptions() }
+    val periodOptions = remember { TimelinePeriod.values().toList() }
+
+    var selectedCategoryId by rememberSaveable(match.id) { mutableStateOf("all") }
+    var selectedPeriodKey by rememberSaveable(match.id) { mutableStateOf(TimelinePeriod.FULL_MATCH.name) }
+    var zoomLevel by rememberSaveable(match.id) { mutableStateOf(1f) }
+    var selectedMarker by remember { mutableStateOf<TimelineEventPlacement?>(null) }
+
+    val selectedPeriod = TimelinePeriod.valueOf(selectedPeriodKey)
+
+    val categoryCountById = remember(events, match) {
+        events.groupingBy { timelineCategoryIdForEvent(it, match) }.eachCount()
+    }
+
+    val placements = remember(events, match, selectedCategoryId, selectedPeriod, zoomLevel) {
+        buildTimelinePlacements(
+            events = events,
+            match = match,
+            categoryId = selectedCategoryId,
+            period = selectedPeriod,
+            zoomLevel = zoomLevel
+        )
+    }
+
+    val selectedCategoryLabel = categoryOptions.firstOrNull { it.id == selectedCategoryId }?.label ?: "Todas"
+
+    val zoomScrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, BorderColor, RoundedCornerShape(16.dp)),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "Linea de tiempo",
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                fontSize = 16.sp,
+                color = TextPrimary
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                TimelineFilterDropdown(
+                    title = "Categoria",
+                    selectedText = selectedCategoryLabel,
+                    options = categoryOptions.map { option ->
+                        val count = if (option.id == "all") {
+                            events.size
+                        } else {
+                            categoryCountById[option.id] ?: 0
+                        }
+                        option.id to "${option.label} ($count)"
+                    },
+                    onSelect = { selectedCategoryId = it },
+                    modifier = Modifier.weight(1f)
+                )
+
+                TimelineFilterDropdown(
+                    title = "Partido",
+                    selectedText = selectedPeriod.label,
+                    options = periodOptions.map { option -> option.name to option.label },
+                    onSelect = {
+                        selectedPeriodKey = it
+                        scope.launch { zoomScrollState.scrollTo(0) }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${placements.size} eventos",
+                    fontSize = 12.sp,
+                    color = TextSecondary,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = { zoomLevel = (zoomLevel - 0.5f).coerceAtLeast(1f) },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
+                    ) {
+                        Text("-", fontSize = 14.sp)
+                    }
+
+                    Text(
+                        text = "${(zoomLevel * 100f).roundToInt()}%",
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+
+                    OutlinedButton(
+                        onClick = { zoomLevel = (zoomLevel + 0.5f).coerceAtMost(4f) },
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
+                    ) {
+                        Text("+", fontSize = 14.sp)
+                    }
+
+                    TextButton(
+                        onClick = {
+                            zoomLevel = 1f
+                            scope.launch { zoomScrollState.scrollTo(0) }
+                        }
+                    ) {
+                        Text("Ajustar", fontSize = 12.sp, color = teamColor)
+                    }
+                }
+            }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, teamColor.copy(alpha = 0.15f), RoundedCornerShape(14.dp)),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(containerColor = teamColorLight.copy(alpha = 0.32f)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                if (placements.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(18.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No hay eventos para los filtros seleccionados.",
+                            fontSize = 13.sp,
+                            color = TextSecondary
+                        )
+                    }
+                } else {
+                    BoxWithConstraints(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 12.dp)
+                    ) {
+                        val viewportWidth = maxWidth
+                        val contentWidth = (viewportWidth * zoomLevel).coerceAtLeast(viewportWidth)
+                        val axisStart = 24.dp
+                        val axisEnd = 24.dp
+                        val axisWidth = (contentWidth - axisStart - axisEnd).coerceAtLeast(80.dp)
+                        val laneSpacing = 30.dp
+                        val laneCount = (placements.maxOfOrNull { it.lane } ?: -1) + 1
+                        val safeLaneCount = laneCount.coerceAtLeast(1)
+                        val timelineHeight = 120.dp + laneSpacing * safeLaneCount.toFloat()
+                        val axisY = timelineHeight - 40.dp
+                        val tickMinutes = timelineTickMinutes(selectedPeriod)
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(zoomScrollState)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(contentWidth)
+                                    .height(timelineHeight)
+                            ) {
+                                if (selectedPeriod == TimelinePeriod.FULL_MATCH) {
+                                    val halfX = timelineXOffset(45, selectedPeriod, axisStart, axisWidth)
+                                    Text(
+                                        text = "1T",
+                                        fontSize = 11.sp,
+                                        color = teamColor,
+                                        modifier = Modifier.offset(x = axisStart + 4.dp, y = axisY - 34.dp)
+                                    )
+                                    Text(
+                                        text = "2T",
+                                        fontSize = 11.sp,
+                                        color = teamColor,
+                                        modifier = Modifier.offset(x = halfX + 6.dp, y = axisY - 34.dp)
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .offset(x = halfX, y = axisY - 16.dp)
+                                            .width(2.dp)
+                                            .height(30.dp)
+                                            .background(teamColor.copy(alpha = 0.45f))
+                                    )
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .offset(x = axisStart, y = axisY)
+                                        .width(axisWidth)
+                                        .height(2.dp)
+                                        .background(BorderColor, RoundedCornerShape(1.dp))
+                                )
+
+                                tickMinutes.forEach { minute ->
+                                    val tickX = timelineXOffset(minute, selectedPeriod, axisStart, axisWidth)
+                                    val isHalfSeparator = selectedPeriod == TimelinePeriod.FULL_MATCH && minute == 45
+
+                                    Box(
+                                        modifier = Modifier
+                                            .offset(x = tickX, y = axisY - 8.dp)
+                                            .width(if (isHalfSeparator) 2.dp else 1.dp)
+                                            .height(if (isHalfSeparator) 18.dp else 14.dp)
+                                            .background(TextSecondary.copy(alpha = if (isHalfSeparator) 0.75f else 0.5f))
+                                    )
+
+                                    Text(
+                                        text = "${minute}'",
+                                        fontSize = 11.sp,
+                                        color = TextSecondary,
+                                        modifier = Modifier.offset(x = tickX - 12.dp, y = axisY + 10.dp)
+                                    )
+                                }
+
+                                placements.forEach { placement ->
+                                    val markerX = timelineXOffset(
+                                        minute = placement.minute,
+                                        period = selectedPeriod,
+                                        axisStart = axisStart,
+                                        axisWidth = axisWidth
+                                    )
+                                    val markerCenterY = axisY - 22.dp - laneSpacing * placement.lane.toFloat()
+                                    val markerColor = timelineCategoryColor(placement.categoryId, teamColor)
+                                    val connectorTop = markerCenterY + 12.dp
+                                    val connectorHeight = (axisY - connectorTop).coerceAtLeast(0.dp)
+
+                                    Box(
+                                        modifier = Modifier
+                                            .offset(x = markerX, y = connectorTop)
+                                            .width(1.dp)
+                                            .height(connectorHeight)
+                                            .background(markerColor.copy(alpha = 0.4f))
+                                    )
+
+                                    Box(
+                                        modifier = Modifier
+                                            .offset(x = markerX - 12.dp, y = markerCenterY - 12.dp)
+                                            .size(24.dp)
+                                            .background(markerColor, CircleShape)
+                                            .border(1.dp, Color.White, CircleShape)
+                                            .clickable { selectedMarker = placement },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = eventIcon(placement.event.type, placement.event.detail, match),
+                                            contentDescription = placement.event.type,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Text(
+                text = "Tip: usa zoom y desplazamiento horizontal para separar eventos cercanos.",
+                fontSize = 11.sp,
+                color = TextSecondary
+            )
+        }
+    }
+
+    selectedMarker?.let { marker ->
+        val markerTitle = formatEventTitle(marker.event.type, marker.event.detail, match)
+        val markerDetail = marker.event.detail.ifBlank { "Sin detalle adicional." }
+
+        AlertDialog(
+            onDismissRequest = { selectedMarker = null },
+            containerColor = SurfaceColor,
+            title = {
+                Text(
+                    text = markerTitle,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                    color = TextPrimary
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Minuto ${marker.minute}'", color = TextPrimary, fontSize = 13.sp)
+                    Text(
+                        "Jugador: ${marker.event.playerName.ifBlank { "Sin jugador" }}",
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
+                    Text("Detalle: $markerDetail", color = TextSecondary, fontSize = 12.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedMarker = null }) {
+                    Text("Cerrar", color = teamColor)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun TimelineFilterDropdown(
+    title: String,
+    selectedText: String,
+    options: List<Pair<String, String>>,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp),
+            shape = RoundedCornerShape(10.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, BorderColor),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary)
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = title,
+                    fontSize = 11.sp,
+                    color = TextSecondary
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = selectedText,
+                    fontSize = 13.sp,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
 
-        item { Spacer(modifier = Modifier.height(8.dp)) }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { (value, label) ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = label,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    },
+                    onClick = {
+                        onSelect(value)
+                        expanded = false
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -1902,3 +2436,4 @@ fun eventIcon(type: String, detail: String = "", match: MatchRecord? = null): Im
         else -> Icons.Default.SportsSoccer
     }
 }
+

@@ -654,11 +654,16 @@ class FutbolViewModel(application: Application) : AndroidViewModel(application) 
     private fun opponentGoalChanceEventType(match: MatchRecord?): String = "Oportunidad de Gol ${currentRivalLabel(match)}"
 
     private fun isTeamGoalType(type: String, match: MatchRecord?): Boolean {
-        return type == "Gol a Favor" || type == teamGoalEventType(match)
+        val teamName = currentTeamLabel(match)
+        return type == "Gol a Favor" || type == "Gol $teamName" || type == "Gol de $teamName"
     }
 
     private fun isOpponentGoalType(type: String, match: MatchRecord?): Boolean {
-        return type == "Gol en Contra" || type == "Gol Rival" || type == opponentGoalEventType(match)
+        val rivalName = currentRivalLabel(match)
+        return type == "Gol en Contra" ||
+            type == "Gol Rival" ||
+            type == "Gol $rivalName" ||
+            type == "Gol de $rivalName"
     }
 
     private fun isTeamAssistType(type: String, match: MatchRecord?): Boolean {
